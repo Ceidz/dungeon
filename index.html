@@ -1,0 +1,1732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#050402" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Realm of Etherion</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>%E2%9A%94%EF%B8%8F</text></svg>" />
+  <style>
+    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+    html,body{
+      margin:0;padding:0;background:#050402;
+      overscroll-behavior:none;
+      /* Prevent iOS rubber-band scroll */
+      position:fixed;width:100%;height:100%;
+    }
+    #root{
+      width:100%;height:100%;
+      overflow-y:auto;
+      -webkit-overflow-scrolling:touch;
+    }
+    /* Loading screen */
+    #loading{
+      position:fixed;inset:0;background:#050402;
+      display:flex;align-items:center;justify-content:center;
+      flex-direction:column;gap:16px;z-index:99999;
+      color:#e8aa44;font-family:Georgia,serif;font-size:16px;letter-spacing:3px;
+    }
+    #loading .spinner{
+      width:40px;height:40px;border:3px solid #2a1e0a;
+      border-top-color:#e8aa44;border-radius:50%;
+      animation:spin 1s linear infinite;
+    }
+    @keyframes spin{to{transform:rotate(360deg)}}
+  </style>
+  <!-- React 18 + Babel standalone for JSX (no build step needed) -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+  <div id="loading">
+    <div class="spinner"></div>
+    <div>ETHERION LOADING...</div>
+  </div>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    // Bring React hooks into scope (Babel standalone uses global React)
+    const { useState, useEffect, useRef, useCallback } = React;
+
+
+/* ═══ BALANCE v5 ═══
+ Warrior HP 550, Shield Bash cost 25 (nerf)
+ Mage HP 320, Fireball 80-110 (buff)
+ Rogue Backstab 2.5x (was 3x, nerf)
+ Ranger HP 400, Volley 1.3x (was 1.4x, nerf)
+ Necromancer HP 350, Drain steal 70% (buff from 60%)
+ XP curve: lv*lv*70 (was 80, easier)
+ Starting gold: 200 (was 150)
+══════════════════*/
+
+const CLASSES = {
+  Warrior:    { icon:"⚔️", hp:550, mana:80,  atk:45,mag:10,spd:30, ability:"Shield Bash",  abilityDesc:"Stun enemy 1 turn + dmg",      abilityCost:25 },
+  Mage:       { icon:"🔮", hp:320, mana:200, atk:15,mag:70,spd:35, ability:"Fireball",     abilityDesc:"80–110 magic damage",           abilityCost:35 },
+  Rogue:      { icon:"🗡️",hp:350, mana:120, atk:55,mag:20,spd:60, ability:"Backstab",     abilityDesc:"2.5× ATK crit strike",          abilityCost:30 },
+  Paladin:    { icon:"🛡️",hp:600, mana:150, atk:35,mag:30,spd:25, ability:"Holy Shield",  abilityDesc:"Block + heal + mag resist",     abilityCost:40 },
+  Ranger:     { icon:"🏹", hp:400, mana:100, atk:50,mag:15,spd:55, ability:"Volley",       abilityDesc:"Hit ALL enemies 1.3× ATK",      abilityCost:25 },
+  Necromancer:{ icon:"💀", hp:350, mana:220, atk:20,mag:80,spd:30, ability:"Death Drain",  abilityDesc:"Steal 70% of mag dmg as HP",    abilityCost:50 },
+};
+
+const REGIONS = {
+  "Starter Isle":   {danger:1, minLevel:1,  mobs:["Slime","Goblin","Rat"],                        bg:"#0a1a12",accent:"#44cc66", desc:"A peaceful island. Gentle waves and soft grass."},
+  "Darkwood":       {danger:3, minLevel:5,  mobs:["Dire Wolf","Bandit","Dark Elf"],                bg:"#0d1008",accent:"#66cc33", desc:"Dense forest where sunlight barely reaches."},
+  "Ironpeak":       {danger:4, minLevel:10, mobs:["Rock Golem","Dwarf Warrior","Wyvern"],          bg:"#110e08",accent:"#cc8833", desc:"Treacherous mountain passes riddled with ambushes."},
+  "Crystalveil":    {danger:5, minLevel:15, mobs:["Crystal Spider","Phantom","Ice Drake"],         bg:"#080d18",accent:"#4488ff", desc:"Magical realm where crystals float and glow."},
+  "Frostholm":      {danger:6, minLevel:18, mobs:["Ice Golem","Frost Wolf","Snow Wraith"],         bg:"#08101a",accent:"#88ddff", desc:"Eternal tundra ruled by the Frost Titan."},
+  "Shadowmere":     {danger:7, minLevel:22, mobs:["Shadow Demon","Lich","Soul Reaper"],            bg:"#0e080e",accent:"#aa44ff", desc:"Cursed swamp where death walks freely."},
+  "Sunken City":    {danger:8, minLevel:28, mobs:["Deep Crawler","Drowned Knight","Sea Serpent"],  bg:"#060d14",accent:"#22aacc", desc:"Ancient metropolis swallowed by the sea."},
+  "Dragon's Peak":  {danger:9, minLevel:32, mobs:["Drake","Lava Elemental","Ancient Dragon"],      bg:"#180808",accent:"#ff4433", desc:"Volcanic summit. Only legends dare approach."},
+  "Celestial Spire":{danger:9, minLevel:38, mobs:["Seraph Guardian","Celestial Drake","Divine Titan"],bg:"#0e0e18",accent:"#ffee44",desc:"Divine tower piercing the heavens."},
+  "The Abyss":      {danger:10,minLevel:45, mobs:["Void Horror","Chaos Titan","Abyssal God"],      bg:"#050508",accent:"#ff00ff", desc:"The end of all things. Nothing escapes."},
+};
+
+const REGION_SHOPS = {
+  "Starter Isle":   {merchant:"Old Tom",         flavor:"Friendly local with basic supplies.",               buy:["Health Potion","Mana Elixir","Antidote","Iron Sword","Upgrade Stone"]},
+  "Darkwood":       {merchant:"Elara",           flavor:"Deals in poisons as readily as cures.",             buy:["Health Potion","Antidote","Poison Flask","Shadow Cloak","Mana Elixir","Rage Potion"]},
+  "Ironpeak":       {merchant:"Durgin",          flavor:"Battle-tested goods. Priced accordingly.",          buy:["Health Potion","Iron Sword","Dragon Scale","Blinding Dust","Super Potion","Upgrade Stone"]},
+  "Crystalveil":    {merchant:"Seraphine",       flavor:"Arcane dealer. Her eyes are the wrong color.",      buy:["Mana Elixir","Staff of Embers","Blinding Dust","Weakness Brew","Frost Shard","Upgrade Stone"]},
+  "Frostholm":      {merchant:"Eira",            flavor:"Sells from an ice forge. Charges in breath.",       buy:["Health Potion","Steel Sword","Frost Shard","Haste Draft","Dragon Scale","Upgrade Stone"]},
+  "Shadowmere":     {merchant:"The Hooded One",  flavor:"Sells what others won't. Remembers everything.",   buy:["Antidote","Shadow Cloak","Poison Flask","Weakness Brew","Elixir of Gods","Dragon Core"]},
+  "Sunken City":    {merchant:"Tide Speaker",    flavor:"Bartered up from the deep.",                        buy:["Super Potion","Steel Staff","Thunder Brew","Weakness Brew","Upgrade Stone","Dragon Core"]},
+  "Dragon's Peak":  {merchant:"Vraxis",          flavor:"Half-dragon. Non-negotiable prices.",               buy:["Dragon Scale","Dragon Sword","Super Potion","Blinding Dust","Elixir of Gods","Dragon Core"]},
+  "Celestial Spire":{merchant:"Auriel's Shop",  flavor:"Radiant goods at a heavenly price.",                buy:["Elixir of Gods","Mythic Blade","Mythic Staff","Mythic Plate","Dragon Core","Haste Draft"]},
+  "The Abyss":      {merchant:"Void Peddler",   flavor:"No face. The prices are paid in regret.",           buy:["Elixir of Gods","Void Armor","Poison Flask","Weakness Brew","Dragon Core","Mythic Plate"]},
+};
+
+const ITEMS = {
+  "Health Potion":   {icon:"🧪",type:"consumable",effect:"heal",        value:150, desc:"Restores 150 HP"},
+  "Mana Elixir":     {icon:"💧",type:"consumable",effect:"mana",        value:80,  desc:"Restores 80 Mana"},
+  "Antidote":        {icon:"💊",type:"consumable",effect:"cure",        value:0,   desc:"Cures poison"},
+  "Super Potion":    {icon:"⚗️",type:"consumable",effect:"heal",        value:400, desc:"Restores 400 HP"},
+  "Elixir of Gods":  {icon:"✨",type:"consumable",effect:"fullheal",    value:0,   desc:"Full HP + Mana"},
+  "Rage Potion":     {icon:"🔴",type:"consumable",effect:"rage",        value:3,   desc:"+50% ATK for 3 combat turns"},
+  "Haste Draft":     {icon:"💨",type:"consumable",effect:"haste",       value:20,  desc:"+20 SPD this combat"},
+  "Poison Flask":    {icon:"🫙",type:"offensive", effect:"enemy_poison",value:20,  desc:"Poison: 20 dmg/turn × 4 turns"},
+  "Blinding Dust":   {icon:"💨",type:"offensive", effect:"enemy_blind", value:3,   desc:"Blind: +25% dodge × 3 turns"},
+  "Weakness Brew":   {icon:"🧫",type:"offensive", effect:"enemy_weaken",value:3,   desc:"Weaken: −30% ATK × 3 turns"},
+  "Frost Shard":     {icon:"🧊",type:"offensive", effect:"enemy_freeze",value:1,   desc:"Freeze: skip enemy's next turn"},
+  "Thunder Brew":    {icon:"⚡",type:"offensive", effect:"enemy_thunder",value:50, desc:"Instant 50 lightning damage"},
+  "Iron Sword":      {icon:"⚔️",type:"weapon",   effect:"atk",         value:15,  desc:"+15 ATK [Tier 1]", tier:1},
+  "Staff of Embers": {icon:"🔥",type:"weapon",   effect:"mag",         value:20,  desc:"+20 MAG [Tier 1]", tier:1},
+  "Steel Sword":     {icon:"⚔️",type:"weapon",   effect:"atk",         value:28,  desc:"+28 ATK [Tier 2]", tier:2},
+  "Steel Staff":     {icon:"🔥",type:"weapon",   effect:"mag",         value:34,  desc:"+34 MAG [Tier 2]", tier:2},
+  "Mythic Blade":    {icon:"🗡️",type:"weapon",   effect:"atk",         value:55,  desc:"+55 ATK [Tier 3]", tier:3},
+  "Mythic Staff":    {icon:"🪄",type:"weapon",   effect:"mag",         value:60,  desc:"+60 MAG [Tier 3]", tier:3},
+  "Dragon Sword":    {icon:"🗡️",type:"weapon",   effect:"atk",         value:40,  desc:"+40 ATK [Crafted]",tier:2},
+  "Mage Staff":      {icon:"🪄",type:"weapon",   effect:"mag",         value:35,  desc:"+35 MAG [Crafted]",tier:2},
+  "Shadow Cloak":    {icon:"🌑",type:"armor",    effect:"spd",         value:10,  desc:"+10 SPD [Tier 1]", tier:1},
+  "Dragon Scale":    {icon:"🐉",type:"armor",    effect:"hp",          value:200, desc:"+200 HP [Tier 1]", tier:1},
+  "Steel Cloak":     {icon:"🌑",type:"armor",    effect:"spd",         value:20,  desc:"+20 SPD [Tier 2]", tier:2},
+  "Steelweave Scale":{icon:"🐉",type:"armor",    effect:"hp",          value:380, desc:"+380 HP [Tier 2]", tier:2},
+  "Mythic Cloak":    {icon:"💨",type:"armor",    effect:"spd",         value:35,  desc:"+35 SPD [Tier 3]", tier:3},
+  "Mythic Plate":    {icon:"🛡️",type:"armor",   effect:"hp",          value:650, desc:"+650 HP [Tier 3]", tier:3},
+  "Void Armor":      {icon:"🌀",type:"armor",    effect:"hp",          value:300, desc:"+300 HP [Crafted]",tier:2},
+  "Upgrade Stone":   {icon:"🪨",type:"material", effect:"upgrade",     value:0,   desc:"Upgrade T1→T2 gear"},
+  "Dragon Core":     {icon:"💎",type:"material", effect:"upgrade2",    value:0,   desc:"Upgrade T2→T3 gear"},
+};
+
+const UPGRADE_PATHS = {
+  "Iron Sword":      {to:"Steel Sword",      cost:500, req:"Upgrade Stone"},
+  "Steel Sword":     {to:"Mythic Blade",     cost:2200,req:"Dragon Core"},
+  "Staff of Embers": {to:"Steel Staff",      cost:500, req:"Upgrade Stone"},
+  "Steel Staff":     {to:"Mythic Staff",     cost:2200,req:"Dragon Core"},
+  "Dragon Sword":    {to:"Mythic Blade",     cost:1800,req:"Dragon Core"},
+  "Mage Staff":      {to:"Mythic Staff",     cost:1800,req:"Dragon Core"},
+  "Shadow Cloak":    {to:"Steel Cloak",      cost:400, req:"Upgrade Stone"},
+  "Steel Cloak":     {to:"Mythic Cloak",     cost:1800,req:"Dragon Core"},
+  "Dragon Scale":    {to:"Steelweave Scale", cost:600, req:"Upgrade Stone"},
+  "Steelweave Scale":{to:"Mythic Plate",     cost:2500,req:"Dragon Core"},
+};
+
+const MOB_TEMPLATES = {
+  "Slime":           {hp:35,  atk:8,  xp:12,  gold:4,    icon:"🟢",desc:"Wiggles ominously."},
+  "Goblin":          {hp:55,  atk:13, xp:22,  gold:11,   icon:"👺",desc:"Clutches a rusty dagger."},
+  "Rat":             {hp:28,  atk:6,  xp:9,   gold:3,    icon:"🐀",poisonChance:0.30,desc:"Festering bite."},
+  "Dire Wolf":       {hp:110, atk:28, xp:55,  gold:20,   icon:"🐺",desc:"Eyes glow red."},
+  "Bandit":          {hp:140, atk:35, xp:70,  gold:45,   icon:"🦹",desc:"Demands your gold."},
+  "Dark Elf":        {hp:120, atk:40, xp:80,  gold:35,   icon:"🧝",poisonChance:0.20,desc:"Deadly grace."},
+  "Rock Golem":      {hp:300, atk:50, xp:130, gold:60,   icon:"🪨",desc:"Trembles the ground."},
+  "Dwarf Warrior":   {hp:200, atk:45, xp:110, gold:55,   icon:"⛏️",desc:"Short but furious."},
+  "Wyvern":          {hp:350, atk:65, xp:200, gold:100,  icon:"🦎",desc:"Wings block the sky."},
+  "Crystal Spider":  {hp:180, atk:42, xp:120, gold:50,   icon:"🕷️",poisonChance:0.45,desc:"Venom crystallizes blood."},
+  "Phantom":         {hp:150, atk:55, xp:140, gold:40,   icon:"👻",poisonChance:0.20,desc:"Phases through attacks."},
+  "Ice Drake":       {hp:400, atk:80, xp:250, gold:130,  icon:"🐲",desc:"Breathes frostfire."},
+  "Ice Golem":       {hp:420, atk:72, xp:190, gold:85,   icon:"❄️",desc:"Frozen colossus."},
+  "Frost Wolf":      {hp:210, atk:57, xp:105, gold:48,   icon:"🐺",desc:"Howls that chill souls."},
+  "Snow Wraith":     {hp:290, atk:78, xp:155, gold:62,   icon:"👻",poisonChance:0.12,desc:"Death made of frost."},
+  "Shadow Demon":    {hp:500, atk:90, xp:350, gold:200,  icon:"😈",poisonChance:0.15,desc:"Feeds on fear."},
+  "Lich":            {hp:600, atk:100,xp:500, gold:300,  icon:"💀",desc:"Ancient undead sorcerer."},
+  "Soul Reaper":     {hp:700, atk:120,xp:600, gold:400,  icon:"💀",desc:"Death made manifest."},
+  "Deep Crawler":    {hp:460, atk:92, xp:230, gold:115,  icon:"🦑",poisonChance:0.35,desc:"Ancient depths horror."},
+  "Drowned Knight":  {hp:520, atk:102,xp:290, gold:145,  icon:"🗡️",desc:"Battles beyond death."},
+  "Sea Serpent":     {hp:720, atk:125,xp:410, gold:210,  icon:"🐍",poisonChance:0.45,desc:"Coils that crush ships."},
+  "Drake":           {hp:800, atk:130,xp:700, gold:500,  icon:"🐉",desc:"Young dragon, still deadly."},
+  "Lava Elemental":  {hp:900, atk:140,xp:800, gold:600,  icon:"🌋",desc:"Burns everything."},
+  "Ancient Dragon":  {hp:2000,atk:180,xp:2000,gold:1500, icon:"🐉",desc:"Apex of draconic power."},
+  "Seraph Guardian": {hp:820, atk:145,xp:520, gold:310,  icon:"😇",desc:"Fallen from grace, lethal."},
+  "Celestial Drake": {hp:1250,atk:185,xp:850, gold:520,  icon:"🌟",desc:"Born of starlight and fury."},
+  "Divine Titan":    {hp:2600,atk:225,xp:1600,gold:1250, icon:"⚡",desc:"A god's broken warrior."},
+  "Void Horror":     {hp:1500,atk:200,xp:1500,gold:1000, icon:"👁️",desc:"Reality warps around it."},
+  "Chaos Titan":     {hp:3000,atk:220,xp:3000,gold:2000, icon:"🗿",desc:"God of destruction."},
+  "Abyssal God":     {hp:9999,atk:300,xp:9999,gold:9999, icon:"🌀",desc:"You shouldn't be here."},
+  "Elder Dragon":    {hp:5000,atk:250,xp:5000,gold:5000, icon:"🐉",desc:"Summoned by the GM!",boss:true},
+  "Demon Lord":      {hp:4000,atk:220,xp:4000,gold:4000, icon:"👹",desc:"Demon Invasion commander!",boss:true},
+  "Meteor Elemental":{hp:3500,atk:200,xp:3500,gold:3000, icon:"☄️",desc:"Forged from fallen stars!",boss:true},
+  "Goblin King":     {hp:900, atk:65, xp:900, gold:450,  icon:"👺",desc:"The goblin king!",boss:true},
+  "Bandit Lord":     {hp:1400,atk:88, xp:1400,gold:750,  icon:"🦹",desc:"Commands bandit armies!",boss:true},
+  "Iron Colossus":   {hp:2200,atk:108,xp:2200,gold:1100, icon:"🪨",desc:"Unstoppable iron giant!",boss:true},
+  "Crystal Hydra":   {hp:2800,atk:128,xp:2800,gold:1300, icon:"💎",desc:"Multi-headed serpent!",boss:true},
+  "Frost Titan":     {hp:3000,atk:138,xp:3000,gold:1600, icon:"❄️",desc:"Ruler of Frostholm!",boss:true},
+  "Ancient Lich King":{hp:3800,atk:162,xp:3800,gold:2000,icon:"💀",desc:"Lich of immeasurable age!",boss:true},
+  "Sunken Leviathan":{hp:4000,atk:170,xp:4000,gold:2500, icon:"🌊",desc:"Ruler of the drowned deep!",boss:true},
+  "Dragon Sovereign":{hp:5500,atk:210,xp:5500,gold:3500, icon:"🐉",desc:"King of all dragonkind.",boss:true},
+  "Seraph Destroyer":{hp:5000,atk:215,xp:5000,gold:4000, icon:"🌟",desc:"Fallen celestial power!",boss:true},
+  "Void Sovereign":  {hp:9000,atk:290,xp:9000,gold:9000, icon:"🌀",desc:"Final guardian of nothingness.",boss:true},
+};
+
+const DUNGEON_DATA = {
+  "Starter Isle":   {name:"Goblin King's Lair",   rooms:4,boss:"Goblin King",       reward:350},
+  "Darkwood":       {name:"Bandit Fortress",       rooms:5,boss:"Bandit Lord",       reward:700},
+  "Ironpeak":       {name:"Golem Mines",           rooms:5,boss:"Iron Colossus",     reward:1100},
+  "Crystalveil":    {name:"Crystal Caverns",       rooms:6,boss:"Crystal Hydra",     reward:1600},
+  "Frostholm":      {name:"Frost Keep",            rooms:5,boss:"Frost Titan",       reward:1800},
+  "Shadowmere":     {name:"Lich's Crypt",          rooms:6,boss:"Ancient Lich King", reward:2800},
+  "Sunken City":    {name:"Drowned Palace",        rooms:6,boss:"Sunken Leviathan",  reward:3200},
+  "Dragon's Peak":  {name:"Dragon Nest",           rooms:7,boss:"Dragon Sovereign",  reward:5000},
+  "Celestial Spire":{name:"Heaven's Gate",         rooms:7,boss:"Seraph Destroyer",  reward:6000},
+  "The Abyss":      {name:"Void Sanctum",          rooms:8,boss:"Void Sovereign",    reward:9999},
+};
+
+const PARTY_RECRUITS = {
+  "Starter Isle":   {name:"Tom Jr.",  cls:"Warrior",     icon:"⚔️", hp:200,maxHp:200,atk:20, cost:80},
+  "Darkwood":       {name:"Sylva",    cls:"Ranger",      icon:"🏹", hp:190,maxHp:190,atk:35, cost:250},
+  "Ironpeak":       {name:"Durgax",   cls:"Warrior",     icon:"⛏️", hp:320,maxHp:320,atk:48, cost:500},
+  "Crystalveil":    {name:"Lyria",    cls:"Mage",        icon:"🔮", hp:165,maxHp:165,atk:60, cost:750},
+  "Frostholm":      {name:"Eira",     cls:"Ranger",      icon:"❄️", hp:240,maxHp:240,atk:52, cost:900},
+  "Shadowmere":     {name:"Vox",      cls:"Necromancer", icon:"💀", hp:210,maxHp:210,atk:80, cost:1200},
+  "Sunken City":    {name:"Marelin",  cls:"Mage",        icon:"🌊", hp:185,maxHp:185,atk:70, cost:1500},
+  "Dragon's Peak":  {name:"Kael",     cls:"Paladin",     icon:"🛡️",hp:420,maxHp:420,atk:90, cost:2000},
+  "Celestial Spire":{name:"Auriel",   cls:"Paladin",     icon:"🌟", hp:480,maxHp:480,atk:110,cost:3000},
+  "The Abyss":      {name:"?????",    cls:"Unknown",     icon:"👁️", hp:600,maxHp:600,atk:150,cost:5000},
+};
+
+const WORLD_EVENTS = [
+  {id:"raid",    name:"Dragon Raid",   icon:"🐉",color:"#ff4444",boss:"Elder Dragon",    duration:120,desc:"An elder dragon terrorizes the realm!"},
+  {id:"invasion",name:"Demon Invasion",icon:"👹",color:"#aa44ff",boss:"Demon Lord",       duration:90, desc:"Demon hordes pour through a rift!"},
+  {id:"meteor",  name:"Meteor Storm",  icon:"☄️",color:"#ff8800",boss:"Meteor Elemental", duration:60, desc:"Meteors rain from the sky!"},
+  {id:"festival",name:"XP Festival",  icon:"🎉",color:"#44ff88",boss:null,               duration:180,desc:"3× XP for all players!"},
+  {id:"goldrush",name:"Gold Rush",     icon:"🏅",color:"#ffd700",boss:null,               duration:120,desc:"5× gold from enemies!"},
+  {id:"war",     name:"Faction War",   icon:"⚔️",color:"#ff2244",boss:null,               duration:90, desc:"PvP enabled — players attack on sight!"},
+  {id:"eclipse", name:"Blood Eclipse", icon:"🌘",color:"#cc2200",boss:null,               duration:60, desc:"All monsters empowered!"},
+];
+
+const WEATHER_EFFECTS = {
+  clear:{playerDmgMult:1.00,enemyDmgMult:1.00,dodgeBonus:0.00,spawnMod:0,  label:"Clear skies — normal."},
+  rain: {playerDmgMult:0.90,enemyDmgMult:0.90,dodgeBonus:0.05,spawnMod:0,  label:"Rain — −10% dmg both sides. +5% dodge."},
+  storm:{playerDmgMult:0.85,enemyDmgMult:1.15,dodgeBonus:0.00,spawnMod:15, label:"Storm — enemies rage! Attacks falter."},
+  snow: {playerDmgMult:0.90,enemyDmgMult:0.90,dodgeBonus:0.00,spawnMod:-15,label:"Snow — −15% spawns."},
+  fog:  {playerDmgMult:0.85,enemyDmgMult:0.85,dodgeBonus:0.10,spawnMod:-20,label:"Fog — +10% dodge."},
+  blood:{playerDmgMult:1.30,enemyDmgMult:1.40,dodgeBonus:0.00,spawnMod:25, label:"Blood moon — all damage surges."},
+};
+
+const NPC_PLAYERS = [
+  {id:2, name:"ShadowKnight99",level:87,cls:"Warrior",    region:"Darkwood",       status:"online"},
+  {id:3, name:"MysticArrow",   level:62,cls:"Ranger",     region:"Ironpeak",       status:"online"},
+  {id:4, name:"GriefQueen",    level:99,cls:"Rogue",      region:"Shadowmere",     status:"online"},
+  {id:5, name:"NewbieHero",    level:3, cls:"Paladin",    region:"Starter Isle",   status:"online"},
+  {id:6, name:"ChaosWizard",   level:78,cls:"Necromancer",region:"Shadowmere",     status:"offline"},
+  {id:7, name:"IronVeil",      level:44,cls:"Warrior",    region:"Ironpeak",       status:"online"},
+  {id:8, name:"VoidSerpent",   level:95,cls:"Rogue",      region:"The Abyss",      status:"online"},
+  {id:9, name:"LunaFrost",     level:38,cls:"Mage",       region:"Frostholm",      status:"online"},
+  {id:10,name:"StormRider",    level:55,cls:"Ranger",     region:"Dragon's Peak",  status:"online"},
+  {id:11,name:"HolyAvenger",   level:71,cls:"Paladin",    region:"Shadowmere",     status:"online"},
+  {id:12,name:"BoneHarvest",   level:88,cls:"Necromancer",region:"The Abyss",      status:"online"},
+  {id:13,name:"NightBlade",    level:22,cls:"Rogue",      region:"Darkwood",       status:"online"},
+  {id:14,name:"RuneKeeper",    level:60,cls:"Mage",       region:"Crystalveil",    status:"offline"},
+  {id:15,name:"GoblinBane",    level:9, cls:"Warrior",    region:"Starter Isle",   status:"online"},
+  {id:16,name:"AshWalker",     level:34,cls:"Ranger",     region:"Darkwood",       status:"online"},
+  {id:17,name:"CrimsonPalm",   level:77,cls:"Paladin",    region:"Dragon's Peak",  status:"online"},
+  {id:18,name:"SoulEater_X",   level:99,cls:"Necromancer",region:"The Abyss",      status:"online"},
+  {id:19,name:"QuickSilver",   level:48,cls:"Rogue",      region:"Ironpeak",       status:"online"},
+  {id:20,name:"FrostArrow",    level:15,cls:"Ranger",     region:"Frostholm",      status:"online"},
+  {id:21,name:"TideCaller",    level:52,cls:"Mage",       region:"Sunken City",    status:"online"},
+  {id:22,name:"SeraphBorn",    level:81,cls:"Paladin",    region:"Celestial Spire",status:"online"},
+  {id:23,name:"DarkProphet",   level:66,cls:"Necromancer",region:"Crystalveil",    status:"online"},
+  {id:24,name:"BerserkerKing", level:93,cls:"Warrior",    region:"Dragon's Peak",  status:"online"},
+  {id:25,name:"MirrorSlash",   level:41,cls:"Rogue",      region:"Sunken City",    status:"online"},
+];
+
+const NPC_ACTIONS=[
+  n=>`${n.name} slew a ${["Goblin","Bandit","Drake","Phantom","Sea Serpent"][Math.floor(Math.random()*5)]}.`,
+  n=>`${n.name} found a treasure chest!`,n=>`${n.name} leveled up!`,
+  n=>`${n.name} entered ${Object.keys(REGIONS)[Math.floor(Math.random()*10)]}.`,
+  n=>`${n.name} completed a dungeon!`,n=>`${n.name} died and respawned.`,
+  n=>`${n.name} crafted a Dragon Sword!`,n=>`${n.name} upgraded gear to Mythic!`,
+  n=>`${n.name} recruited a party member.`,n=>`${n.name} challenged another player!`,
+];
+
+const SKILL_TREE = {
+  "Power Strike":  {icon:"⚔️",desc:"+20% ATK dmg/rank",     cost:1,maxRank:3,effect:"atk_pct",    value:0.20,classes:["Warrior","Rogue","Ranger","Paladin"]},
+  "Iron Body":     {icon:"❤️",desc:"+100 Max HP/rank",       cost:1,maxRank:3,effect:"maxhp",      value:100, classes:["Warrior","Paladin"]},
+  "Arcane Mind":   {icon:"💧",desc:"+40 Max Mana/rank",      cost:1,maxRank:3,effect:"maxmana",    value:40,  classes:["Mage","Necromancer","Paladin"]},
+  "Swiftness":     {icon:"💨",desc:"+8 SPD/rank (+dodge)",   cost:1,maxRank:3,effect:"spd",        value:8,   classes:["Rogue","Ranger","Mage"]},
+  "Spell Mastery": {icon:"🔮",desc:"+25% MAG dmg/rank",      cost:2,maxRank:2,effect:"mag_pct",    value:0.25,classes:["Mage","Necromancer"]},
+  "Treasure Hunter":{icon:"💰",desc:"+30% gold/rank",        cost:2,maxRank:2,effect:"gold_pct",   value:0.30,classes:null},
+  "Lucky Strike":  {icon:"🍀",desc:"20% chance 2× damage",  cost:2,maxRank:1,effect:"crit",       value:0.20,classes:["Rogue","Warrior","Ranger"]},
+  "Regeneration":  {icon:"✨",desc:"+10 HP after each fight",cost:2,maxRank:1,effect:"regen",      value:10,  classes:null},
+  "Mana Shield":   {icon:"🛡️",desc:"15% negate hit chance", cost:3,maxRank:1,effect:"mana_shield",value:0.15,classes:["Mage","Paladin","Necromancer"]},
+};
+
+const CRAFT_RECIPES=[
+  {name:"Super Potion",  icon:"⚗️",requires:["Health Potion","Health Potion","Mana Elixir"],result:"Super Potion",  desc:"Restores 400 HP"},
+  {name:"Dragon Sword",  icon:"🗡️",requires:["Iron Sword","Dragon Scale"],                  result:"Dragon Sword",  desc:"+40 ATK"},
+  {name:"Mage Staff",    icon:"🪄",requires:["Staff of Embers","Staff of Embers"],           result:"Mage Staff",    desc:"+35 MAG"},
+  {name:"Void Armor",    icon:"🌀",requires:["Shadow Cloak","Dragon Scale"],                 result:"Void Armor",    desc:"+300 HP"},
+  {name:"Elixir of Gods",icon:"✨",requires:["Health Potion","Mana Elixir","Antidote"],      result:"Elixir of Gods",desc:"Full HP + Mana"},
+  {name:"Rage Potion",   icon:"🔴",requires:["Health Potion","Mana Elixir"],                 result:"Rage Potion",   desc:"+50% ATK 3 turns"},
+];
+
+const SHOP_PRICES={
+  "Health Potion":{buy:60,sell:25},"Mana Elixir":{buy:70,sell:30},"Antidote":{buy:35,sell:12},
+  "Poison Flask":{buy:80,sell:30},"Blinding Dust":{buy:90,sell:35},"Weakness Brew":{buy:100,sell:40},
+  "Frost Shard":{buy:120,sell:50},"Thunder Brew":{buy:150,sell:60},"Rage Potion":{buy:130,sell:55},
+  "Haste Draft":{buy:110,sell:45},"Iron Sword":{buy:250,sell:80},"Staff of Embers":{buy:300,sell:100},
+  "Steel Sword":{buy:500,sell:200},"Steel Staff":{buy:550,sell:220},"Mythic Blade":{buy:1800,sell:700},
+  "Mythic Staff":{buy:1800,sell:700},"Shadow Cloak":{buy:220,sell:80},"Dragon Scale":{buy:600,sell:220},
+  "Steel Cloak":{buy:450,sell:180},"Steelweave Scale":{buy:900,sell:350},"Mythic Cloak":{buy:2000,sell:800},
+  "Mythic Plate":{buy:2500,sell:1000},"Elixir of Gods":{buy:900,sell:400},"Super Potion":{buy:0,sell:80},
+  "Dragon Sword":{buy:700,sell:280},"Mage Staff":{buy:650,sell:260},"Void Armor":{buy:800,sell:320},
+  "Upgrade Stone":{buy:400,sell:120},"Dragon Core":{buy:1500,sell:500},
+};
+
+const GLOBAL_QUESTS=[
+  {id:1, name:"First Steps",    desc:"Survive your first combat.",        done:false, reward:50},
+  {id:2, name:"Goblin Slayer",  desc:"Kill 3 Goblins.",                   done:false, progress:0,goal:3,  reward:200},
+  {id:3, name:"Explorer",       desc:"Visit 3 different regions.",         done:false, visited:["Starter Isle"],goal:3,reward:500},
+  {id:4, name:"Treasure Hunter",desc:"Find 5 treasure chests.",           done:false, progress:0,goal:5,  reward:800},
+  {id:5, name:"Wealthy",        desc:"Accumulate 1,000 gold at once.",     done:false, reward:1000},
+  {id:6, name:"Dragon Slayer",  desc:"Defeat a Drake or Ancient Dragon.", done:false, reward:2000},
+  {id:7, name:"Blacksmith",     desc:"Craft 3 items.",                    done:false, progress:0,goal:3,  reward:600},
+  {id:8, name:"Night Fighter",  desc:"Win 3 battles at night.",           done:false, progress:0,goal:3,  reward:750},
+  {id:9, name:"Alchemist",      desc:"Use 3 offensive items in combat.",  done:false, progress:0,goal:3,  reward:500},
+  {id:11,name:"Dungeon Crawler",desc:"Complete your first dungeon.",       done:false, reward:1500},
+  {id:12,name:"Companion",      desc:"Recruit a party member.",           done:false, reward:400},
+  {id:13,name:"Forgemaster",    desc:"Upgrade any item to Tier 2+.",      done:false, reward:800},
+];
+
+const CLASS_QUESTS={
+  Warrior:    {id:10,name:"Ironclad",     desc:"Stun 5 enemies.",           done:false,progress:0,goal:5,   reward:900},
+  Mage:       {id:10,name:"Pyromaniac",   desc:"Deal 1,500 magic damage.",  done:false,progress:0,goal:1500,reward:900},
+  Rogue:      {id:10,name:"Shadow Strike",desc:"Land 5 Backstabs.",         done:false,progress:0,goal:5,   reward:900},
+  Paladin:    {id:10,name:"Holy Warrior", desc:"Block 3 hits with Shield.", done:false,progress:0,goal:3,   reward:900},
+  Ranger:     {id:10,name:"Eagle Eye",    desc:"Volley 2+ enemies 3 times.",done:false,progress:0,goal:3,   reward:900},
+  Necromancer:{id:10,name:"Lifedrinker",  desc:"Drain 500 total HP.",       done:false,progress:0,goal:500, reward:900},
+};
+
+const ACHIEVEMENTS_DEF=[
+  {id:"first_blood",name:"First Blood",    icon:"🩸",desc:"Win your first combat"},
+  {id:"dungeon1",   name:"Crawler",        icon:"🏰",desc:"Complete a dungeon"},
+  {id:"dungeon5",   name:"Dungeon Master", icon:"🗝️",desc:"Complete 5 dungeons"},
+  {id:"level10",    name:"Seasoned",       icon:"⭐",desc:"Reach level 10"},
+  {id:"level25",    name:"Veteran",        icon:"🌟",desc:"Reach level 25"},
+  {id:"level50",    name:"Legendary",      icon:"👑",desc:"Reach level 50"},
+  {id:"rich",       name:"Wealthy Lord",   icon:"💰",desc:"Hold 10,000+ gold"},
+  {id:"kills50",    name:"Monster Hunter", icon:"⚔️",desc:"50 kills"},
+  {id:"kills200",   name:"Warlord",        icon:"💀",desc:"200 kills"},
+  {id:"dragon",     name:"Dragonslayer",   icon:"🐉",desc:"Defeat an Ancient Dragon"},
+  {id:"mythic",     name:"Mythic Forger",  icon:"⚒️",desc:"Own a Mythic tier item"},
+  {id:"party",      name:"Companions",     icon:"🤝",desc:"Recruit a party member"},
+  {id:"allregions", name:"Cartographer",   icon:"🗺️",desc:"Visit all 10 regions"},
+];
+
+const T={
+  gameBg:"#0a0804",gameCard:"#110e08",gameBorder:"#2a1e0a",gameAccent:"#e8aa44",
+  gameText:"#d4b896",gameDim:"#5a4030",gameDanger:"#ff5533",gameGreen:"#55cc66",
+  gmBg:"#07090d",gmCard:"#0d1117",gmBorder:"#1a2535",gmAccent:"#3dd68c",
+  gmText:"#b8cfe0",gmDim:"#3a5068",gmDanger:"#ff4444",gmWarn:"#ffaa00",
+  gmBlue:"#44aaff",gmGold:"#ffd700",
+};
+
+const SAVE_KEY="etherion_v5";
+function ts(){return new Date().toLocaleTimeString("en-US",{hour12:false});}
+function rnd(a,b){return Math.floor(Math.random()*(b-a+1))+a;}
+function clamp(v,mn,mx){return Math.min(mx,Math.max(mn,v));}
+function xpForLevel(lv){return lv*lv*70;}
+let _uid=1000;function uid(){return ++_uid;}
+
+function genDungeon(region){
+  const d=DUNGEON_DATA[region]; if(!d) return null;
+  const rooms=[];
+  for(let i=0;i<d.rooms;i++){
+    if(i===d.rooms-1) rooms.push({type:"boss",done:false,id:uid()});
+    else if(i===Math.floor(d.rooms/2)-1) rooms.push({type:"treasure",done:false,id:uid()});
+    else if(i===d.rooms-2) rooms.push({type:"rest",done:false,id:uid()});
+    else rooms.push({type:"combat",done:false,id:uid()});
+  }
+  return {name:d.name,region,rooms,roomIdx:0,reward:d.reward,boss:d.boss};
+}
+
+// ── Stateless UI primitives (outside component to keep stable identity) ──
+const Bar=({val,max,color,h=8})=>(<div style={{height:h,background:"#1a1208",borderRadius:h/2,overflow:"hidden"}}><div style={{height:"100%",width:clamp((val/max)*100,0,100)+"%",background:color,borderRadius:h/2,transition:"width 0.3s"}}/></div>);
+const GBar=({val,max,color="#3dd68c",h=5})=>(<div style={{height:h,background:"#0d1117",borderRadius:h/2,overflow:"hidden",marginTop:3}}><div style={{height:"100%",width:clamp((val/max)*100,0,100)+"%",background:color,borderRadius:h/2,transition:"width 0.4s"}}/></div>);
+const Btn=(props)=><button {...props} style={{cursor:"pointer",...props.style}}/>;
+const inp=(extra={})=>({background:"#0a0c10",border:"1px solid #1a2535",color:"#b8cfe0",borderRadius:3,padding:"5px 8px",fontSize:11,fontFamily:"monospace",outline:"none",...extra});
+const sinp=(extra={})=>({background:"#0a0804",border:"1px solid #2a1e0a",color:"#d4b896",borderRadius:3,padding:"6px 10px",fontSize:12,fontFamily:"Georgia,serif",outline:"none",...extra});
+
+function GMGame(){
+  const[screen,setScreen]=useState("create");
+  const[playerName,setPlayerName]=useState("Cei");
+  const[playerClass,setPlayerClass]=useState("Warrior");
+  const[hasSave,setHasSave]=useState(false);
+  const[me,setMe]=useState(null);
+  const[region,setRegion]=useState("Starter Isle");
+  const[shielded,setShielded]=useState(false);
+  const[poisoned,setPoisoned]=useState(false);
+  const[stunned,setStunned]=useState(false);
+  const[rageTurns,setRageTurns]=useState(0);
+  const[hasteBonus,setHasteBonus]=useState(0);
+  const[skillPoints,setSkillPoints]=useState(0);
+  const[learnedSkills,setLearnedSkills]=useState({});
+  const[achievements,setAchievements]=useState([]);
+  const[party,setParty]=useState(null);
+  const[dungeon,setDungeon]=useState(null);
+  const dungeonRef=useRef(null);
+  const[gameView,setGameView]=useState("world");
+  const[invTab,setInvTab]=useState("equip");
+  const[encounter,setEncounter]=useState(null);
+  const[combatTurn,setCombatTurn]=useState("player");
+  const[combatItemOpen,setCombatItemOpen]=useState(false);
+  const[selectedTargetIdx,setSelectedTargetIdx]=useState(0);
+  const[exploring,setExploring]=useState(false);
+  const[resting,setResting]=useState(false);
+  const[notification,setNotification]=useState(null);
+  const[gameLog,setGameLog]=useState([]);
+  const[quests,setQuests]=useState(GLOBAL_QUESTS);
+  const[deathScreen,setDeathScreen]=useState(null);
+  const[levelUpInfo,setLevelUpInfo]=useState(null);
+  const[dungeonComplete,setDungeonComplete]=useState(null);
+  const[newAchievement,setNewAchievement]=useState(null);
+  const[gmOpen,setGmOpen]=useState(false);
+  const[gmTab,setGmTab]=useState("world");
+  const[activeEvents,setActiveEvents]=useState([]);
+  const[eventTimers,setEventTimers]=useState({});
+  const[weather,setWeather]=useState("clear");
+  const[weatherLocked,setWeatherLocked]=useState(false);
+  const[timeOfDay,setTimeOfDay]=useState(14);
+  const[xpMult,setXpMult]=useState(1);
+  const[goldMult,setGoldMult]=useState(1);
+  const[spawnRate,setSpawnRate]=useState(50);
+  const[npcPlayers,setNpcPlayers]=useState(NPC_PLAYERS);
+  const[gmLogs,setGmLogs]=useState([{t:"00:00:00",msg:"World initialized. #Etherion-7",type:"system"}]);
+  const[pvpEnabled,setPvpEnabled]=useState(true);
+  const[lockedRegions,setLockedRegions]=useState([]);
+  const[whisper,setWhisper]=useState(null);
+  const[announcement,setAnnouncement]=useState(null);
+  const[gmPuppet,setGmPuppet]=useState(null);
+  const[gmBounties,setGmBounties]=useState([]);
+  const[gmCustomItems,setGmCustomItems]=useState({});
+  const[gmShopMods,setGmShopMods]=useState([]);
+  const[gmStatEdit,setGmStatEdit]=useState({atk:"",mag:"",hp:"",mana:"",level:"",gold:""});
+  const[gmShopForm,setGmShopForm]=useState({item:"Health Potion",shop:"all",duration:"permanent"});
+  const[gmAnnounceForm,setGmAnnounceForm]=useState({text:"",color:"#44ffcc",icon:"📢"});
+  const[gmWhisperForm,setGmWhisperForm]=useState({text:"",color:"#aa88ff"});
+  const[gmBountyForm,setGmBountyForm]=useState({name:"",desc:"",goal:1,type:"kills",rewardType:"gold",rewardGold:500,rewardItem:"Health Potion"});
+  const[gmCustomItemForm,setGmCustomItemForm]=useState({name:"",icon:"⚔️",type:"weapon",effect:"atk",value:20,desc:""});
+  const[gmCustomEventForm,setGmCustomEventForm]=useState({name:"",icon:"🌟",color:"#44ffcc",desc:"",duration:60,xpMult:1,goldMult:1});
+  const gameLogRef=useRef(null);
+  const gmLogRef=useRef(null);
+  // Used to guard the enemy attack setTimeout from firing after combat already resolved (e.g. poison kill)
+  const encounterRef=useRef(null);
+
+  useEffect(()=>{dungeonRef.current=dungeon;},[dungeon]);
+  useEffect(()=>{encounterRef.current=encounter;},[encounter]);
+  const wfx=WEATHER_EFFECTS[weather]||WEATHER_EFFECTS.clear;
+  const isNight=timeOfDay<6||timeOfDay>=21;
+  const isDay=timeOfDay>=9&&timeOfDay<18;
+  const allItems={...ITEMS,...gmCustomItems};
+  const isGM=me?.name==="Cei";
+
+  const gLog=useCallback((msg,type="info")=>{setGameLog(prev=>[...prev.slice(-60),{t:ts(),msg,type}]);},[]);
+  const gmLog=useCallback((msg,type="info")=>{setGmLogs(prev=>[...prev.slice(-60),{t:ts(),msg,type}]);},[]);
+  const notify=useCallback((msg,color="#e8aa44")=>{setNotification({msg,color});setTimeout(()=>setNotification(null),3200);},[]);
+
+  useEffect(()=>{if(gameLogRef.current)gameLogRef.current.scrollTop=gameLogRef.current.scrollHeight;},[gameLog]);
+  useEffect(()=>{if(gmLogRef.current)gmLogRef.current.scrollTop=gmLogRef.current.scrollHeight;},[gmLogs]);
+  useEffect(()=>{try{const d=JSON.parse(localStorage.getItem(SAVE_KEY)||"{}");if(d.me)setHasSave(true);}catch{}},[]);
+  useEffect(()=>{
+    if(!me||screen!=="game")return;
+    try{localStorage.setItem(SAVE_KEY,JSON.stringify({me,region,skillPoints,learnedSkills,quests,achievements}));}catch{}
+  },[me,region,quests,skillPoints,learnedSkills,achievements,screen]);
+
+  const loadGame=useCallback(()=>{
+    try{
+      const d=JSON.parse(localStorage.getItem(SAVE_KEY)||"{}");
+      if(!d.me)return;
+      setMe(d.me);setRegion(d.region||"Starter Isle");setSkillPoints(d.skillPoints||0);
+      setLearnedSkills(d.learnedSkills||{});
+      if(d.quests)setQuests(d.quests);if(d.achievements)setAchievements(d.achievements);
+      setScreen("game");setTimeout(()=>gLog("Save loaded!","system"),50);
+    }catch{notify("Load failed!","#ff5533");}
+  },[gLog,notify]);
+
+  useEffect(()=>{
+    if(!activeEvents.length)return;
+    const iv=setInterval(()=>{
+      setEventTimers(prev=>{
+        const next={...prev};const expired=[];
+        for(const id in next){next[id]--;if(next[id]<=0)expired.push(id);}
+        if(expired.length){
+          setActiveEvents(ae=>ae.filter(e=>!expired.includes(e)));
+          expired.forEach(id=>{
+            const ev=WORLD_EVENTS.find(e=>e.id===id)||{name:id};
+            gmLog("Event ended: "+ev.name,"system");gLog(ev.name+" event ended.","system");
+            if(id==="festival")setXpMult(1);if(id==="goldrush")setGoldMult(1);if(id==="war")setPvpEnabled(false);
+            delete next[id];
+          });
+        }
+        return next;
+      });
+    },1000);
+    return()=>clearInterval(iv);
+  },[activeEvents,gLog,gmLog]);
+
+  useEffect(()=>{
+    const iv=setInterval(()=>{
+      const on=npcPlayers.filter(n=>n.status==="online");if(!on.length)return;
+      const n=on[rnd(0,on.length-1)];gLog("["+n.name+"] "+NPC_ACTIONS[rnd(0,NPC_ACTIONS.length-1)](n),"npc");
+    },8000);return()=>clearInterval(iv);
+  },[npcPlayers,gLog]);
+
+  useEffect(()=>{
+    const iv=setInterval(()=>{setTimeOfDay(t=>{const next=(t+1)%24;if(next===21)setTimeout(()=>gLog("Night falls.","story"),0);if(next===6)setTimeout(()=>gLog("Dawn breaks.","story"),0);return next;});},60000);
+    return()=>clearInterval(iv);
+  },[gLog]);
+
+  useEffect(()=>{
+    if(!gmPuppet||gmPuppet.mode!=="ambush"||gameView==="combat"||!me)return;
+    const npc=npcPlayers.find(n=>n.id===gmPuppet.npcId);if(!npc)return;
+    const nc=CLASSES[npc.cls];const lm=npc.level/50+0.5;
+    const e={name:npc.name,icon:nc.icon,hp:Math.round(nc.hp*lm),maxHp:Math.round(nc.hp*lm),atk:Math.round(nc.atk*lm),xp:npc.level*40,gold:npc.level*15,desc:"GM Puppet",pvp:true};
+    setEncounter({enemies:[e]});setGameView("combat");setCombatTurn("player");setSelectedTargetIdx(0);
+    gLog("AMBUSH by "+npc.name+"! (GM Puppet)","system");notify("AMBUSH: "+npc.name+"!","#ff4444");setGmPuppet(null);
+  },[gmPuppet,gameView]);
+
+  const checkAch=useCallback((snap)=>{
+    if(!snap)return;
+    setAchievements(prev=>{
+      const next=[...prev];
+      const add=(id,name)=>{if(!next.includes(id)){next.push(id);setTimeout(()=>{setNewAchievement({id,name});setTimeout(()=>setNewAchievement(null),4500);},100);}};
+      if(snap.kills>=1)add("first_blood","First Blood");
+      if(snap.kills>=50)add("kills50","Monster Hunter");
+      if(snap.kills>=200)add("kills200","Warlord");
+      if(snap.level>=10)add("level10","Seasoned");
+      if(snap.level>=25)add("level25","Veteran");
+      if(snap.level>=50)add("level50","Legendary");
+      if(snap.gold>=10000)add("rich","Wealthy Lord");
+      if((snap.dungeonsCleared||0)>=1)add("dungeon1","Crawler");
+      if((snap.dungeonsCleared||0)>=5)add("dungeon5","Dungeon Master");
+      if((snap.regionsVisited||[]).length>=10)add("allregions","Cartographer");
+      const itemList=[...(snap.inventory||[]),...(snap.equipped||[])];
+      if(itemList.some(i=>(ITEMS[i]||{}).tier===3))add("mythic","Mythic Forger");
+      return next;
+    });
+  },[]);
+
+  const advanceQuest=useCallback((id,amount=1)=>{
+    setQuests(prev=>prev.map(q=>{
+      if(q.id!==id||q.done)return q;
+      const p=(q.progress||0)+amount;
+      if(p>=q.goal){setTimeout(()=>{gLog("Quest done: "+q.name,"system");notify("Quest: "+q.name,"#55cc66");},0);return{...q,done:true,progress:p};}
+      return{...q,progress:p};
+    }));
+  },[gLog,notify]);
+
+  const startGame=()=>{
+    localStorage.removeItem(SAVE_KEY);
+    const cls=CLASSES[playerClass];const cq=CLASS_QUESTS[playerClass];
+    setMe({name:playerName||"Hero",cls:playerClass,level:1,hp:cls.hp,maxHp:cls.hp,mana:cls.mana,maxMana:cls.mana,atk:cls.atk,mag:cls.mag,spd:cls.spd,gold:200,xp:0,xpNext:xpForLevel(1),kills:0,inventory:["Health Potion","Health Potion","Mana Elixir","Poison Flask","Upgrade Stone"],equipped:[],dungeonsCleared:0,regionsVisited:["Starter Isle"]});
+    setSkillPoints(0);setLearnedSkills({});setAchievements([]);setParty(null);setDungeon(null);dungeonRef.current=null;
+    setQuests([...GLOBAL_QUESTS.map(q=>({...q})),{...cq}]);setRegion("Starter Isle");setScreen("game");
+    gLog(playerName+" the "+playerClass+" enters Etherion!","system");
+    gLog("200 gold + Upgrade Stone. GM panel unlocks if name is Cei.","story");
+  };
+
+  const gainXP=useCallback((amount)=>{
+    const actual=Math.round(amount*xpMult*(isNight?1.5:1.0));
+    gLog("+"+actual+" XP"+(xpMult>1?" (x"+xpMult+")":isNight?" night":""),"xp");
+    setMe(prev=>{
+      if(!prev)return prev;
+      let newXp=prev.xp+actual,lv=prev.level,gained=0;
+      let maxHp=prev.maxHp,maxMana=prev.maxMana,atk=prev.atk,mag=prev.mag;
+      while(newXp>=xpForLevel(lv)){newXp-=xpForLevel(lv);lv++;gained++;maxHp+=50;maxMana+=20;atk+=5;mag+=5;}
+      if(gained>0){setTimeout(()=>{setLevelUpInfo({newLevel:lv,hpGain:gained*50,atkGain:gained*5,magGain:gained*5,manaGain:gained*20});setSkillPoints(sp=>sp+gained);},0);}
+      const next={...prev,xp:newXp,xpNext:xpForLevel(lv),level:lv,maxHp,maxMana,atk,mag,hp:Math.min(prev.hp+30,maxHp)};
+      setTimeout(()=>checkAch(next),50);return next;
+    });
+  },[xpMult,isNight,gLog,checkAch]);
+
+  const gainGold=useCallback((amount)=>{
+    const thB=(learnedSkills["Treasure Hunter"]||0)*0.30;
+    const actual=Math.round(amount*goldMult*(1+thB)*(isDay?1.2:1.0));
+    gLog("+"+actual+"g","gold");
+    setMe(prev=>{
+      if(!prev)return prev;
+      const g=prev.gold+actual;
+      setQuests(qs=>qs.map(q=>{if(q.id===5&&!q.done&&g>=1000){setTimeout(()=>gLog("Quest: Wealthy!","system"),0);return{...q,done:true};}return q;}));
+      const next={...prev,gold:g};setTimeout(()=>checkAch(next),50);return next;
+    });
+  },[goldMult,learnedSkills,isDay,gLog,checkAch]);
+
+  const learnSkill=(name)=>{
+    const skill=SKILL_TREE[name];const rank=learnedSkills[name]||0;
+    if(rank>=skill.maxRank){notify("Max rank!","#5a4030");return;}
+    if(skillPoints<skill.cost){notify("Need SP!","#ff5533");return;}
+    if(skill.classes&&me&&!skill.classes.includes(me.cls)){notify(me.cls+" can't learn "+name+"!","#ff5533");return;}
+    setSkillPoints(sp=>sp-skill.cost);setLearnedSkills(p=>({...p,[name]:rank+1}));
+    setMe(prev=>{if(!prev)return prev;
+      if(skill.effect==="maxhp")return{...prev,maxHp:prev.maxHp+skill.value,hp:prev.hp+skill.value};
+      if(skill.effect==="maxmana")return{...prev,maxMana:prev.maxMana+skill.value,mana:prev.mana+skill.value};
+      if(skill.effect==="spd")return{...prev,spd:prev.spd+skill.value};
+      return prev;
+    });
+    gLog(name+" R"+(rank+1)+"!","system");notify("Skill: "+name+" R"+(rank+1),"#aa88ff");
+  };
+
+  const upgradeItem=(itemName)=>{
+    if(!me)return;
+    const path=UPGRADE_PATHS[itemName];if(!path){notify("Not upgradeable!","#5a4030");return;}
+    const inv=[...me.inventory];
+    if(!inv.includes(itemName)){notify("Not in inventory!","#ff5533");return;}
+    if(!inv.includes(path.req)){notify("Need: "+path.req,"#ff5533");return;}
+    if(me.gold<path.cost){notify("Need more gold!","#ff5533");return;}
+    inv.splice(inv.indexOf(itemName),1);inv.splice(inv.indexOf(path.req),1);
+    let equipped=[...(me.equipped||[])];let adj={};
+    if(equipped.includes(itemName)){
+      const old=ITEMS[itemName]||{};
+      if(old.effect==="atk")adj.atk=-old.value;if(old.effect==="mag")adj.mag=-old.value;
+      if(old.effect==="spd")adj.spd=-old.value;if(old.effect==="hp")adj.maxHp=-old.value;
+      equipped=equipped.filter(e=>e!==itemName);
+      const nw=ITEMS[path.to]||{};
+      if(nw.effect==="atk")adj.atk=(adj.atk||0)+nw.value;if(nw.effect==="mag")adj.mag=(adj.mag||0)+nw.value;
+      if(nw.effect==="spd")adj.spd=(adj.spd||0)+nw.value;if(nw.effect==="hp")adj.maxHp=(adj.maxHp||0)+nw.value;
+      equipped.push(path.to);
+    }
+    inv.push(path.to);
+    const nm=(me.maxHp)+(adj.maxHp||0);
+    setMe(prev=>prev?{...prev,inventory:inv,equipped,gold:prev.gold-path.cost,atk:prev.atk+(adj.atk||0),mag:prev.mag+(adj.mag||0),spd:prev.spd+(adj.spd||0),maxHp:nm,hp:Math.min(prev.hp,nm)}:prev);
+    gLog("Upgraded "+itemName+" to "+path.to+"!","system");notify("Upgraded: "+path.to,"#44ffcc");advanceQuest(13);
+  };
+
+  const equipItem=(itemName)=>{
+    const item=ITEMS[itemName]||{};if(!item||(item.type!=="weapon"&&item.type!=="armor"))return;
+    setMe(prev=>{if(!prev)return prev;
+      const eq=[...(prev.equipped||[])];const xi=eq.findIndex(e=>(ITEMS[e]||{}).type===item.type);let p={...prev};
+      if(xi>=0){const old=ITEMS[eq[xi]]||{};if(old.effect==="atk")p.atk-=old.value;if(old.effect==="mag")p.mag-=old.value;if(old.effect==="spd")p.spd-=old.value;if(old.effect==="hp"){p.maxHp-=old.value;p.hp=Math.min(p.hp,p.maxHp);}eq.splice(xi,1);}
+      if(item.effect==="atk")p.atk+=item.value;if(item.effect==="mag")p.mag+=item.value;if(item.effect==="spd")p.spd+=item.value;if(item.effect==="hp"){p.maxHp+=item.value;p.hp+=item.value;}
+      eq.push(itemName);return{...p,equipped:eq};
+    });
+    gLog("Equipped "+itemName,"system");notify("Equipped: "+itemName,"#e8aa44");
+  };
+
+  const unequipItem=(itemName)=>{
+    const item=ITEMS[itemName]||{};
+    setMe(prev=>{if(!prev)return prev;
+      const eq=(prev.equipped||[]).filter(e=>e!==itemName);let p={...prev};
+      if(item.effect==="atk")p.atk-=item.value;if(item.effect==="mag")p.mag-=item.value;if(item.effect==="spd")p.spd-=item.value;if(item.effect==="hp"){p.maxHp-=item.value;p.hp=Math.min(p.hp,p.maxHp);}
+      return{...p,equipped:eq};
+    });gLog("Unequipped "+itemName,"system");
+  };
+
+  const craftItem=(recipe)=>{
+    if(!me)return;const inv=[...me.inventory];
+    for(const r of recipe.requires){const i=inv.indexOf(r);if(i===-1){notify("Missing: "+r,"#ff5533");return;}inv.splice(i,1);}
+    inv.push(recipe.result);setMe(prev=>prev?{...prev,inventory:inv}:prev);
+    gLog("Crafted: "+recipe.name,"gold");notify("Crafted: "+recipe.name,"#44ffcc");advanceQuest(7);
+  };
+
+  const getShopBuyList=()=>{
+    const base=REGION_SHOPS[region]?.buy||[];
+    const gm=gmShopMods.filter(m=>(m.shop==="all"||m.shop===region)&&(m.permanent||Date.now()<m.expiresAt)).map(m=>m.item);
+    return[...new Set([...base,...gm])];
+  };
+
+  const shopBuy=(itemName)=>{
+    const price=SHOP_PRICES[itemName]?.buy||100;if(!me||me.gold<price){notify("Need more gold!","#ff5533");return;}
+    setMe(prev=>prev?{...prev,gold:prev.gold-price,inventory:[...prev.inventory,itemName]}:prev);
+    gLog("Bought "+itemName+" for "+price+"g","gold");notify("Bought: "+itemName,"#ffd700");
+  };
+
+  const shopSell=(itemName)=>{
+    const price=SHOP_PRICES[itemName]?.sell;if(!price||!me)return;
+    const inv=[...me.inventory];const i=inv.indexOf(itemName);if(i===-1)return;inv.splice(i,1);
+    setMe(prev=>prev?{...prev,gold:prev.gold+price,inventory:inv}:prev);
+    gLog("Sold "+itemName+" +"+price+"g","gold");notify("+"+price+"g","#ffd700");
+  };
+
+  const recruitParty=()=>{
+    const rec=PARTY_RECRUITS[region];if(!rec||!me)return;
+    if(me.gold<rec.cost){notify("Need "+rec.cost+"g","#ff5533");return;}
+    setMe(prev=>prev?{...prev,gold:prev.gold-rec.cost}:prev);setParty({...rec});
+    gLog(rec.name+" joined your party!","system");notify("Party: "+rec.name,"#55cc66");advanceQuest(12);
+    setAchievements(prev=>prev.includes("party")?prev:[...prev,"party"]);
+    setNewAchievement({id:"party",name:"Companions"});setTimeout(()=>setNewAchievement(null),4500);
+  };
+
+  const dismissParty=()=>{if(!party)return;gLog(party.name+" left the party.","system");setParty(null);};
+
+  const useItem=(itemName)=>{
+    const item=ITEMS[itemName]||{};if(!item||item.type!=="consumable")return;
+    setMe(prev=>{if(!prev)return prev;
+      const inv=[...prev.inventory];const i=inv.indexOf(itemName);if(i<0)return prev;inv.splice(i,1);
+      let hp=prev.hp,mana=prev.mana;
+      if(item.effect==="heal")hp=Math.min(prev.maxHp,hp+item.value);
+      if(item.effect==="mana")mana=Math.min(prev.maxMana,mana+item.value);
+      if(item.effect==="fullheal"){hp=prev.maxHp;mana=prev.maxMana;}
+      if(item.effect==="cure")setPoisoned(false);
+      if(item.effect==="rage"){setRageTurns(item.value);setTimeout(()=>gLog("RAGE! +50% ATK for "+item.value+" turns","system"),0);}
+      if(item.effect==="haste"){setHasteBonus(item.value);setTimeout(()=>gLog("HASTE! +"+item.value+" SPD","system"),0);}
+      gLog("Used "+itemName,"system");return{...prev,hp,mana,inventory:inv};
+    });setCombatItemOpen(false);
+  };
+
+  const useOffensiveItem=(itemName)=>{
+    const item=ITEMS[itemName]||{};if(!item||item.type!=="offensive"||!encounter)return;
+    const tidx=Math.min(selectedTargetIdx,encounter.enemies.length-1);
+    setMe(prev=>{if(!prev)return prev;const inv=[...prev.inventory];const i=inv.indexOf(itemName);if(i===-1)return prev;inv.splice(i,1);return{...prev,inventory:inv};});
+    const en=encounter.enemies[tidx];
+    if(item.effect==="enemy_thunder"){
+      const newHp=Math.max(0,en.hp-50);gLog("Thunder Brew! 50 dmg on "+en.name,"combat");
+      setEncounter(prev=>prev?{...prev,enemies:prev.enemies.map((e,i)=>i===tidx?{...e,hp:newHp}:e)}:prev);
+      if(newHp<=0){
+        setTimeout(()=>{
+          resolveKill(en);
+          const rem=encounter.enemies.filter((_,i)=>i!==tidx);
+          if(rem.length>0){setEncounter(p=>p?{...p,enemies:rem}:p);setCombatTurn("enemy");setSelectedTargetIdx(0);setTimeout(()=>enemyTurnFnRef.current&&enemyTurnFnRef.current(rem[0]),900);}
+          else handleCombatWin();
+        },200);
+      } else{setCombatTurn("enemy");setTimeout(()=>enemyTurnFnRef.current&&enemyTurnFnRef.current({...en,hp:newHp}),900);}
+    } else {
+      setEncounter(prev=>{if(!prev)return prev;return{...prev,enemies:prev.enemies.map((e,i)=>{
+        if(i!==tidx)return e;
+        if(item.effect==="enemy_poison")return{...e,poisoned:true,poisonTurns:(e.poisonTurns||0)+item.value};
+        if(item.effect==="enemy_blind")return{...e,blinded:true,blindTurns:(e.blindTurns||0)+item.value};
+        if(item.effect==="enemy_weaken")return{...e,weakened:true,weakenTurns:(e.weakenTurns||0)+item.value};
+        if(item.effect==="enemy_freeze")return{...e,frozen:true,frozenTurns:1};
+        return e;
+      })};});
+      gLog("Applied "+itemName+" on "+en.name,"combat");
+      setCombatTurn("enemy");setTimeout(()=>enemyTurnFnRef.current&&enemyTurnFnRef.current(en),900);
+    }
+    notify("Applied!","#44ffcc");setCombatItemOpen(false);advanceQuest(9);
+  };
+
+  const rest=()=>{
+    if(resting||gameView==="combat"||!me)return;setResting(true);gLog("Resting...","story");
+    setTimeout(()=>{setMe(prev=>prev?{...prev,mana:prev.maxMana,hp:Math.min(prev.maxHp,prev.hp+Math.round(prev.maxHp*0.1))}:prev);setPoisoned(false);setResting(false);gLog("Rested! Mana restored.","system");notify("Rested!","#55cc66");},1800);
+  };
+
+  const enterDungeon=()=>{
+    if(gameView==="combat")return;const d=genDungeon(region);if(!d){notify("No dungeon here!","#ff5533");return;}
+    setDungeon(d);dungeonRef.current=d;setGameView("dungeon");
+    gLog("Entered dungeon: "+d.name,"system");notify("Dungeon: "+d.name,"#e8aa44");
+  };
+
+  const enterDungeonRoom=(room)=>{
+    const d=dungeonRef.current;if(!d||!room)return;
+    if(room.type==="combat"||room.type==="boss"){
+      const reg=REGIONS[d.region];
+      let mobName,mobTemplate;
+      if(room.type==="boss"){
+        mobName=d.boss;mobTemplate=MOB_TEMPLATES[mobName]||MOB_TEMPLATES["Goblin King"];
+      } else {
+        mobName=reg.mobs[rnd(0,reg.mobs.length-1)];mobTemplate=MOB_TEMPLATES[mobName]||MOB_TEMPLATES["Goblin"];
+      }
+      const em=isNight?1.2:1.0;
+      const mob={...mobTemplate,name:mobName,hp:Math.round(mobTemplate.hp*em),maxHp:Math.round(mobTemplate.hp*em),atk:Math.round(mobTemplate.atk*em)};
+      setEncounter({enemies:[mob]});setGameView("combat");setCombatTurn("player");setSelectedTargetIdx(0);
+      gLog((room.type==="boss"?"BOSS: ":"")+mobName+" appears!","combat");
+    } else if(room.type==="treasure"){
+      const gold=rnd(d.reward*0.1,d.reward*0.25);gainGold(gold);
+      if(rnd(1,2)===1){const k=Object.keys(ITEMS);const it=k[rnd(0,k.length-1)];setMe(p=>p?{...p,inventory:[...p.inventory,it]}:p);gLog("Treasure room! +"+gold+"g + "+it,"gold");}
+      else gLog("Treasure room! +"+gold+"g","gold");
+      notify("Treasure!","#ffd700");advanceQuest(4);
+      const nextIdx=d.roomIdx+1;
+      if(nextIdx>=d.rooms.length){setDungeon(null);dungeonRef.current=null;setGameView("world");gainGold(d.reward);setMe(prev=>{if(!prev)return prev;const next={...prev,dungeonsCleared:(prev.dungeonsCleared||0)+1};setTimeout(()=>checkAch(next),100);return next;});setDungeonComplete({name:d.name,reward:d.reward});advanceQuest(11);}
+      else{const upd={...d,rooms:d.rooms.map((r,i)=>i===d.roomIdx?{...r,done:true}:r),roomIdx:nextIdx};setDungeon(upd);dungeonRef.current=upd;}
+    } else if(room.type==="rest"){
+      setMe(prev=>prev?{...prev,hp:Math.min(prev.maxHp,prev.hp+Math.round(prev.maxHp*0.3)),mana:prev.maxMana}:prev);
+      gLog("Rest room! Restored 30% HP and full Mana.","system");notify("Rested!","#55cc66");
+      const nextIdx=d.roomIdx+1;
+      if(nextIdx>=d.rooms.length){setDungeon(null);dungeonRef.current=null;setGameView("world");}
+      else{const upd={...d,rooms:d.rooms.map((r,i)=>i===d.roomIdx?{...r,done:true}:r),roomIdx:nextIdx};setDungeon(upd);dungeonRef.current=upd;}
+    }
+  };
+
+  const handleCombatWin=useCallback(()=>{
+    setEncounter(null);setCombatTurn("player");setShielded(false);setPoisoned(false);setStunned(false);
+    setSelectedTargetIdx(0);setRageTurns(0);setHasteBonus(0);setCombatItemOpen(false);
+    const d=dungeonRef.current;
+    if(d){
+      const nextIdx=d.roomIdx+1;
+      if(nextIdx>=d.rooms.length){
+        setDungeon(null);dungeonRef.current=null;setGameView("world");gainGold(d.reward);
+        setMe(prev=>{if(!prev)return prev;const next={...prev,dungeonsCleared:(prev.dungeonsCleared||0)+1};setTimeout(()=>checkAch(next),100);return next;});
+        setDungeonComplete({name:d.name,reward:d.reward});advanceQuest(11);
+        gLog("DUNGEON CLEARED: "+d.name,"system");
+      } else {
+        const upd={...d,rooms:d.rooms.map((r,i)=>i===d.roomIdx?{...r,done:true}:r),roomIdx:nextIdx};
+        setDungeon(upd);dungeonRef.current=upd;setGameView("dungeon");
+      }
+    } else setGameView("world");
+  },[gainGold,checkAch,advanceQuest]);
+
+  const resolveKill=useCallback((killedEnemy)=>{
+    gainXP(killedEnemy.xp);gainGold(killedEnemy.gold);
+    if(learnedSkills["Regeneration"]){setMe(prev=>prev?{...prev,hp:Math.min(prev.maxHp,prev.hp+10)}:prev);setTimeout(()=>gLog("Regen +10 HP","system"),0);}
+    if(rnd(1,4)===1){const keys=Object.keys(ITEMS);const it=keys[rnd(0,keys.length-1)];setMe(prev=>prev?{...prev,inventory:[...prev.inventory,it]}:prev);setTimeout(()=>gLog("Drop: "+it,"gold"),0);}
+    setQuests(prev=>prev.map(q=>{
+      if(q.id===1&&!q.done){setTimeout(()=>gLog("Quest: First Steps","system"),0);return{...q,done:true};}
+      if(q.id===2&&killedEnemy.name==="Goblin"&&!q.done){const p=(q.progress||0)+1;if(p>=q.goal){setTimeout(()=>gLog("Quest: Goblin Slayer","system"),0);gainGold(q.reward);return{...q,done:true,progress:p};}return{...q,progress:p};}
+      if(q.id===6&&!q.done&&(killedEnemy.name==="Drake"||killedEnemy.name==="Ancient Dragon")){setTimeout(()=>{gLog("Quest: Dragon Slayer","system");gainGold(q.reward);},0);setAchievements(prev=>prev.includes("dragon")?prev:[...prev,"dragon"]);return{...q,done:true};}
+      if(q.id===8&&!q.done&&isNight){const p=(q.progress||0)+1;if(p>=q.goal){setTimeout(()=>gLog("Quest: Night Fighter","system"),0);gainGold(q.reward);return{...q,done:true,progress:p};}return{...q,progress:p};}
+      return q;
+    }));
+    setMe(prev=>{if(!prev)return prev;const next={...prev,kills:prev.kills+1};setTimeout(()=>checkAch(next),100);return next;});
+    setGmBounties(prev=>prev.map(b=>{if(b.done||b.type!=="kills")return b;const p=(b.progress||0)+1;if(p>=b.goal){setTimeout(()=>{gLog("Bounty: "+b.name,"system");notify("Bounty: "+b.name,"#ffd700");},0);return{...b,done:true,progress:p};}return{...b,progress:p};}));
+  },[gainXP,gainGold,learnedSkills,isNight,gLog,checkAch,notify]);
+
+  const enemyTurnFnRef=useRef(null);
+  const enemyTurnFn=useCallback((enemy)=>{
+    setEncounter(prev=>{
+      if(!prev)return prev;
+      const eidx=prev.enemies.findIndex(e=>e===enemy||e.name===enemy.name);
+      const targetIdx=eidx>=0?eidx:0;
+      let e={...prev.enemies[targetIdx]};let pdmg=0;
+      if(e.poisoned&&e.poisonTurns>0){pdmg=20;e.poisonTurns--;if(e.poisonTurns<=0)e.poisoned=false;setTimeout(()=>gLog(e.name+" poison -20","combat"),0);}
+      if(e.blinded&&e.blindTurns>0){e.blindTurns--;if(e.blindTurns<=0){e.blinded=false;}}
+      if(e.weakened&&e.weakenTurns>0){e.weakenTurns--;if(e.weakenTurns<=0)e.weakened=false;}
+      if(e.frozen&&e.frozenTurns>0){e.frozenTurns--;if(e.frozenTurns<=0)e.frozen=false;}
+      if(pdmg>0){const hp=Math.max(0,e.hp-pdmg);e.hp=hp;if(hp<=0){setTimeout(()=>{resolveKill(e);const rem=prev.enemies.filter((_,i)=>i!==targetIdx);if(rem.length>0){setEncounter(p=>p?{...p,enemies:rem}:p);setCombatTurn("player");setSelectedTargetIdx(0);}else handleCombatWin();},0);return{...prev,enemies:prev.enemies.map((x,i)=>i===targetIdx?e:x)};}}
+      if(e.frozen){setTimeout(()=>{gLog(e.name+" FROZEN - skips turn","combat");setCombatTurn("player");},150);return{...prev,enemies:prev.enemies.map((x,i)=>i===targetIdx?e:x)};}
+      return{...prev,enemies:prev.enemies.map((x,i)=>i===targetIdx?e:x)};
+    });
+    setTimeout(()=>{
+      // Guard: if encounter was already resolved (e.g. enemy died from poison), don't apply enemy attack
+      if(!encounterRef.current)return;
+      setMe(prev=>{
+        if(!prev)return prev;
+        const ec=activeEvents.includes("eclipse");
+        let dmg=rnd(Math.round(enemy.atk*0.8),Math.round(enemy.atk*1.2));
+        if(ec)dmg=Math.round(dmg*1.3);if(isNight)dmg=Math.round(dmg*1.2);if(enemy.weakened)dmg=Math.round(dmg*0.7);
+        dmg=Math.round(dmg*(WEATHER_EFFECTS[weather]||WEATHER_EFFECTS.clear).enemyDmgMult);
+        const dodge=Math.min(0.50,(prev.spd+hasteBonus)/500+(WEATHER_EFFECTS[weather]||WEATHER_EFFECTS.clear).dodgeBonus+(enemy.blinded?0.25:0));
+        if(Math.random()<dodge){setTimeout(()=>gLog("Dodged! ("+Math.round(dodge*100)+"%)","combat"),0);setCombatTurn("player");return prev;}
+        if((learnedSkills["Mana Shield"]||0)>0&&Math.random()<0.15){setTimeout(()=>gLog("Mana Shield negated hit!","combat"),0);setCombatTurn("player");return prev;}
+        if(shielded){setTimeout(()=>gLog("Shield blocked "+enemy.name+"!","combat"),0);setShielded(false);setCombatTurn("player");setQuests(qs=>qs.map(q=>{if(q.id===10&&!q.done&&prev.cls==="Paladin"){const p=(q.progress||0)+1;if(p>=q.goal){setTimeout(()=>gLog("Quest: Holy Warrior","system"),0);return{...q,done:true,progress:p};}return{...q,progress:p};}return q;}));return prev;}
+        let newHp=Math.max(0,prev.hp-dmg);
+        if(poisoned){newHp=Math.max(0,newHp-20);setTimeout(()=>gLog("Poison -20 HP","warn"),0);}
+        if(!poisoned&&enemy.poisonChance&&Math.random()<enemy.poisonChance){setPoisoned(true);setTimeout(()=>gLog(enemy.name+" poisons you!","warn"),0);}
+        if(party&&Math.random()<0.1){const sd=rnd(5,Math.round(enemy.atk*0.3));setParty(p=>p?{...p,hp:Math.max(0,p.hp-sd)}:p);}
+        setTimeout(()=>gLog(enemy.name+" hits for "+dmg+(ec?" (Eclipse!)":isNight?" night":"")+(enemy.weakened?" (weak)":""),"combat"),0);
+        if(newHp<=0){const gl=Math.min(50,prev.gold);setTimeout(()=>{setDeathScreen({killer:enemy.name,kills:prev.kills,level:prev.level,region,goldLost:gl});handleCombatWin();setRegion("Starter Isle");setDungeon(null);dungeonRef.current=null;},0);return{...prev,hp:Math.round(prev.maxHp*0.5),gold:Math.max(0,prev.gold-gl)};}
+        setCombatTurn("player");return{...prev,hp:newHp};
+      });
+    },150);
+  },[activeEvents,weather,isNight,shielded,poisoned,learnedSkills,hasteBonus,party,region,handleCombatWin,resolveKill,gLog]);
+
+  useEffect(()=>{enemyTurnFnRef.current=enemyTurnFn;},[enemyTurnFn]);
+
+  const playerAttack=(type)=>{
+    if(!encounter||combatTurn!=="player"||!me)return;
+    const tidx=Math.min(selectedTargetIdx,encounter.enemies.length-1);
+    const enemy=encounter.enemies[tidx];if(!enemy||enemy.hp<=0)return;
+    const cls=CLASSES[me.cls];
+    const atkPct=1+(learnedSkills["Power Strike"]||0)*0.20;
+    const magPct=1+(learnedSkills["Spell Mastery"]||0)*0.25;
+    const critCh=(learnedSkills["Lucky Strike"]||0)*0.20;
+    const wm=(WEATHER_EFFECTS[weather]||WEATHER_EFFECTS.clear).playerDmgMult;
+    const rage=rageTurns>0?1.5:1.0;
+    let dmg=0,msg="",newMana=me.mana;
+
+    if(type==="attack"){
+      dmg=Math.round(rnd(Math.round(me.atk*0.85),Math.round(me.atk*1.15))*atkPct*wm*rage);
+      if(Math.random()<critCh){dmg=Math.round(dmg*2);msg="CRITICAL! "+dmg+" dmg on "+enemy.name;}
+      else msg="You hit "+enemy.name+" for "+dmg+(rage>1?" RAGE":"");
+      if(rageTurns>0)setRageTurns(r=>r-1);
+    } else if(type==="ability"){
+      if(me.mana<cls.abilityCost){gLog("Not enough mana!","warn");return;}
+      newMana=me.mana-cls.abilityCost;
+      if(me.cls==="Warrior"){dmg=Math.round(me.atk*0.8*atkPct*wm);setStunned(true);msg="Shield Bash! "+enemy.name+" STUNNED! "+dmg+" dmg";advanceQuest(10);}
+      else if(me.cls==="Mage"){dmg=Math.round(rnd(80,110)*magPct*wm);msg="Fireball! "+dmg+" magic dmg";advanceQuest(10,dmg);}
+      else if(me.cls==="Rogue"){dmg=Math.round(me.atk*2.5*atkPct*wm);msg="BACKSTAB "+enemy.name+"! "+dmg+" dmg";advanceQuest(10);}
+      else if(me.cls==="Paladin"){setShielded(true);const heal=Math.round(me.mag*0.5);dmg=Math.round(me.atk*0.5*atkPct*wm);setMe(prev=>prev?{...prev,hp:Math.min(prev.maxHp,prev.hp+heal),mana:newMana}:prev);msg="Holy Shield! +"+heal+" HP. "+dmg+" dmg.";}
+      else if(me.cls==="Ranger"){
+        const vd=Math.round(me.atk*1.3*atkPct*wm);
+        const ne=encounter.enemies.map(e=>({...e,hp:Math.max(0,e.hp-vd)}));
+        const killed=ne.filter(e=>e.hp<=0);const surv=ne.filter(e=>e.hp>0);
+        gLog("Volley! "+encounter.enemies.length+" targets x"+vd,"combat");
+        killed.forEach(k=>{gLog(k.name+" defeated!","system");resolveKill(k);});
+        if(encounter.enemies.length>=2)advanceQuest(10);
+        let fs=surv;
+        if(party&&party.hp>0&&surv.length>0){const ad=rnd(Math.round(party.atk*0.6),party.atk);fs=surv.map((e,i)=>i===0?{...e,hp:Math.max(0,e.hp-ad)}:e);const ak=fs.filter(e=>e.hp<=0);fs=fs.filter(e=>e.hp>0);ak.forEach(k=>{resolveKill(k);});}
+        setMe(prev=>prev?{...prev,mana:Math.min(prev.maxMana,newMana+5)}:prev);
+        if(fs.length===0)handleCombatWin();
+        else{setEncounter(prev=>({...prev,enemies:fs}));setCombatTurn("enemy");setSelectedTargetIdx(0);setTimeout(()=>enemyTurnFnRef.current&&enemyTurnFnRef.current(fs[0]),900);}
+        return;
+      } else if(me.cls==="Necromancer"){dmg=Math.round((40+me.mag*0.4)*magPct*wm);const drain=Math.round(dmg*0.7);setMe(prev=>prev?{...prev,hp:Math.min(prev.maxHp,prev.hp+drain)}:prev);msg="Death Drain! Stole "+drain+" HP ("+dmg+" dealt)";advanceQuest(10,drain);}
+    } else if(type==="flee"){
+      if(rnd(1,2)===1){gLog("You fled!","warn");handleCombatWin();}
+      else{gLog("Couldn't escape!","warn");setCombatTurn("enemy");setTimeout(()=>enemyTurnFnRef.current&&enemyTurnFnRef.current(encounter.enemies[0]),800);}
+      return;
+    }
+
+    setMe(prev=>prev?{...prev,mana:Math.min(prev.maxMana,newMana+5)}:prev);
+    let finalHp=Math.max(0,enemy.hp-dmg);
+    if(msg)gLog(msg,"combat");
+    let allyDmg=0;
+    if(party&&party.hp>0&&finalHp>0){allyDmg=rnd(Math.round(party.atk*0.6),party.atk);gLog(party.name+" hits "+enemy.name+" for "+allyDmg,"combat");}
+    finalHp=Math.max(0,finalHp-allyDmg);
+
+    if(finalHp<=0){
+      gLog(enemy.name+" defeated!","system");resolveKill(enemy);
+      const rem=encounter.enemies.filter((_,i)=>i!==tidx);
+      if(rem.length>0){gLog(rem[0].name+" advances!","combat");setEncounter(prev=>({...prev,enemies:rem}));setCombatTurn("enemy");setSelectedTargetIdx(0);setTimeout(()=>enemyTurnFnRef.current&&enemyTurnFnRef.current(rem[0]),900);}
+      else handleCombatWin();
+    } else {
+      const upd=encounter.enemies.map((e,i)=>i===tidx?{...e,hp:finalHp}:e);
+      setEncounter(prev=>({...prev,enemies:upd}));
+      if(stunned){gLog(enemy.name+" stunned - skips turn!","combat");setStunned(false);setCombatTurn("player");return;}
+      setCombatTurn("enemy");setTimeout(()=>enemyTurnFnRef.current&&enemyTurnFnRef.current({...enemy,hp:finalHp}),900);
+    }
+  };
+
+  const travelTo=(dest)=>{
+    if(gameView==="combat")return;
+    if(lockedRegions.includes(dest)){notify(dest+" is LOCKED by GM!","#ff4444");gLog("GM locked "+dest,"warn");return;}
+    const req=REGIONS[dest]?.minLevel||1;
+    if(me&&me.level<req){notify("Level "+req+" required!","#ff5533");return;}
+    setRegion(dest);setGameView("world");setDungeon(null);dungeonRef.current=null;
+    gLog("Traveled to "+dest,"story");notify("Arrived: "+dest,"#e8aa44");
+    setQuests(prev=>prev.map(q=>{
+      if(q.id===3&&!q.done){const vis=[...new Set([...(q.visited||[]),dest])];if(vis.length>=q.goal){setTimeout(()=>{gLog("Quest: Explorer","system");gainGold(q.reward);},0);return{...q,done:true,visited:vis};}return{...q,visited:vis};}return q;
+    }));
+    setMe(prev=>{if(!prev)return prev;const rv=[...new Set([...(prev.regionsVisited||[]),dest])];const next={...prev,regionsVisited:rv};setTimeout(()=>checkAch(next),50);return next;});
+  };
+
+  const explore=()=>{
+    if(exploring||gameView==="combat"||resting)return;setExploring(true);gLog("Exploring "+region+"...","story");
+    setTimeout(()=>{
+      setExploring(false);const reg=REGIONS[region];const w=WEATHER_EFFECTS[weather]||WEATHER_EFFECTS.clear;
+      const eff=Math.min(95,spawnRate+w.spawnMod+(isNight?20:0));const roll=rnd(1,100);
+      const bossEv=activeEvents.map(id=>WORLD_EVENTS.find(e=>e.id===id)).find(ev=>ev?.boss);
+      if(activeEvents.includes("war")&&pvpEnabled&&rnd(1,100)<=40){
+        const on=npcPlayers.filter(n=>n.status==="online");if(on.length){const n=on[rnd(0,on.length-1)];const nc=CLASSES[n.cls];const lm=n.level/50+0.5;const e={name:n.name,icon:nc.icon,hp:Math.round(nc.hp*lm),maxHp:Math.round(nc.hp*lm),atk:Math.round(nc.atk*lm),xp:n.level*40,gold:n.level*15,desc:"PvP",pvp:true};setEncounter({enemies:[e]});setGameView("combat");setCombatTurn("player");setSelectedTargetIdx(0);gLog("PvP! "+n.name+" attacks!","system");return;}
+      }
+      if(bossEv&&rnd(1,100)<=40){const bt=MOB_TEMPLATES[bossEv.boss];setEncounter({enemies:[{...bt,name:bossEv.boss,maxHp:bt.hp}]});setGameView("combat");setCombatTurn("player");setSelectedTargetIdx(0);gLog("EVENT BOSS: "+bossEv.boss,"system");return;}
+      if(roll<=eff){
+        const mn=reg.mobs[rnd(0,reg.mobs.length-1)];const t=MOB_TEMPLATES[mn]||MOB_TEMPLATES["Goblin"];
+        const em=activeEvents.includes("eclipse")?1.5:isNight?1.2:1.0;
+        const mob={...t,name:mn,hp:Math.round(t.hp*em),maxHp:Math.round(t.hp*em),atk:Math.round(t.atk*em)};
+        let enemies=[mob];
+        if(reg.danger>=3&&rnd(1,100)<=30){const m2n=reg.mobs[rnd(0,reg.mobs.length-1)];const t2=MOB_TEMPLATES[m2n]||MOB_TEMPLATES["Goblin"];const m2={...t2,name:m2n,hp:Math.round(t2.hp*em),maxHp:Math.round(t2.hp*em),atk:Math.round(t2.atk*em)};enemies=[mob,m2];gLog("Two enemies: "+mob.name+" + "+m2n,"combat");}
+        else gLog(mn+" appears! "+t.desc,"combat");
+        setEncounter({enemies});setGameView("combat");setSelectedTargetIdx(0);
+      } else if(roll<=eff+20){
+        gainGold(rnd(reg.danger*5,reg.danger*25));gLog("Treasure chest!","gold");
+        if(rnd(1,3)===1){const k=Object.keys(ITEMS);const it=k[rnd(0,k.length-1)];setMe(p=>p?{...p,inventory:[...p.inventory,it]}:p);gLog("Also found: "+it,"gold");}
+        notify("Treasure!","#ffd700");advanceQuest(4);
+      } else {
+        const fl=["Path is quiet.","Old footprints found.","A bird watches.","Something moved, then vanished.","Distant battle cries.","The wind whispers."];
+        gLog(fl[rnd(0,fl.length-1)],"story");
+      }
+    },900);
+  };
+
+  // GM functions
+  const gmTriggerEvent=(ev)=>{if(activeEvents.includes(ev.id))return;setActiveEvents(p=>[...p,ev.id]);setEventTimers(p=>({...p,[ev.id]:ev.duration}));gLog("GM: "+ev.name+" - "+ev.desc,"system");notify(ev.icon+" "+ev.name,ev.color);if(ev.id==="festival")setXpMult(3);if(ev.id==="goldrush")setGoldMult(5);if(ev.id==="war")setPvpEnabled(true);if(ev.xpMult&&ev.xpMult>1)setXpMult(ev.xpMult);if(ev.goldMult&&ev.goldMult>1)setGoldMult(ev.goldMult);};
+  const gmStopEvent=(id)=>{
+    setActiveEvents(p=>{
+      const remaining=p.filter(e=>e!==id);
+      // Reset multipliers only if no other active event is providing them
+      const hasOtherFestival=remaining.some(eid=>eid==="festival"||WORLD_EVENTS.find(e=>e.id===eid)?.xpMult>1);
+      const hasOtherGoldrush=remaining.some(eid=>eid==="goldrush"||WORLD_EVENTS.find(e=>e.id===eid)?.goldMult>1);
+      if(!hasOtherFestival)setXpMult(1);
+      if(!hasOtherGoldrush)setGoldMult(1);
+      return remaining;
+    });
+    setEventTimers(p=>{const n={...p};delete n[id];return n;});
+    if(id==="war")setPvpEnabled(false);
+  };
+  const gmApplyStats=()=>{if(!me)return;const u={};if(gmStatEdit.atk!=="")u.atk=parseInt(gmStatEdit.atk)||me.atk;if(gmStatEdit.mag!=="")u.mag=parseInt(gmStatEdit.mag)||me.mag;if(gmStatEdit.hp!==""){const v=parseInt(gmStatEdit.hp)||me.maxHp;u.maxHp=v;u.hp=v;}if(gmStatEdit.mana!==""){const v=parseInt(gmStatEdit.mana)||me.maxMana;u.maxMana=v;u.mana=v;}if(gmStatEdit.level!==""){const v=Math.max(1,parseInt(gmStatEdit.level)||me.level);u.level=v;u.xpNext=xpForLevel(v);u.xp=0;}if(gmStatEdit.gold!=="")u.gold=Math.max(0,parseInt(gmStatEdit.gold)||me.gold);setMe(p=>p?{...p,...u}:p);notify("Stats updated!","#44ffcc");setGmStatEdit({atk:"",mag:"",hp:"",mana:"",level:"",gold:""});};
+  const gmAddShopMod=()=>{const{item,shop,duration}=gmShopForm;const perm=duration==="permanent";const dm={"5min":300000,"15min":900000,"30min":1800000,"1hr":3600000};const mod={id:uid(),item,shop,permanent:perm,expiresAt:perm?null:Date.now()+(dm[duration]||300000)};setGmShopMods(prev=>[...prev.filter(m=>!(m.item===item&&m.shop===shop)),mod]);notify("Shop updated!","#ffd700");};
+  const gmSendWhisper=()=>{if(!gmWhisperForm.text)return;setWhisper({msg:gmWhisperForm.text,color:gmWhisperForm.color});setTimeout(()=>setWhisper(null),8000);setGmWhisperForm(p=>({...p,text:""}));};
+  const gmSendAnnounce=()=>{if(!gmAnnounceForm.text)return;setAnnouncement({text:gmAnnounceForm.text,color:gmAnnounceForm.color,icon:gmAnnounceForm.icon});gLog("ANNOUNCE: "+gmAnnounceForm.icon+" "+gmAnnounceForm.text,"system");setGmAnnounceForm(p=>({...p,text:""}));};
+  const gmCreateBounty=()=>{if(!gmBountyForm.name)return;const b={id:uid(),...gmBountyForm,progress:0,done:false};setGmBounties(prev=>[...prev,b]);gLog("Bounty posted: "+b.name,"system");notify("Bounty: "+b.name,"#ffd700");setGmBountyForm({name:"",desc:"",goal:1,type:"kills",rewardType:"gold",rewardGold:500,rewardItem:"Health Potion"});};
+  const claimBounty=(b)=>{if(!b.done)return;if(b.rewardType==="gold")gainGold(b.rewardGold);else if(b.rewardType==="item"){setMe(p=>p?{...p,inventory:[...p.inventory,b.rewardItem]}:p);gLog("Bounty reward: "+b.rewardItem,"gold");}else if(b.rewardType==="sp"){setSkillPoints(sp=>sp+1);gLog("Bounty reward: +1 SP","system");}setGmBounties(prev=>prev.filter(x=>x.id!==b.id));notify("Bounty claimed!","#ffd700");};
+  const gmCreateCustomItem=()=>{if(!gmCustomItemForm.name)return;setGmCustomItems(prev=>({...prev,[gmCustomItemForm.name]:{...gmCustomItemForm,custom:true}}));SHOP_PRICES[gmCustomItemForm.name]={buy:200,sell:80};notify("Created: "+gmCustomItemForm.name,"#44aaff");setGmCustomItemForm({name:"",icon:"⚔️",type:"weapon",effect:"atk",value:20,desc:""});};
+  const gmCreateCustomEvent=()=>{if(!gmCustomEventForm.name)return;const ev={id:"custom_"+uid(),name:gmCustomEventForm.name,icon:gmCustomEventForm.icon,color:gmCustomEventForm.color,boss:null,duration:gmCustomEventForm.duration,desc:gmCustomEventForm.desc,xpMult:gmCustomEventForm.xpMult,goldMult:gmCustomEventForm.goldMult};gmTriggerEvent(ev);setGmCustomEventForm({name:"",icon:"🌟",color:"#44ffcc",desc:"",duration:60,xpMult:1,goldMult:1});};
+
+  // (Bar, GBar, Btn, inp, sinp are defined above as module-level constants)
+
+  const regData=REGIONS[region]||REGIONS["Starter Isle"];
+  const wIcon={clear:"☀️",rain:"🌧️",storm:"⛈️",snow:"❄️",fog:"🌫️",blood:"🌑"}[weather]||"☀️";
+  const tIcon=timeOfDay<6?"🌑":timeOfDay<12?"🌅":timeOfDay<18?"☀️":timeOfDay<21?"🌆":"🌙";
+  const clsData=me?CLASSES[me.cls]:null;
+  const dodgePct=me?Math.round(Math.min(50,(me.spd+hasteBonus)/5+wfx.dodgeBonus*100)):0;
+  const healItems=me?me.inventory.filter(i=>ITEMS[i]?.type==="consumable"):[];
+  const offItems=me?me.inventory.filter(i=>ITEMS[i]?.type==="offensive"):[];
+  const hasAnyItems=healItems.length>0||offItems.length>0;
+  const eqWeapon=me?(me.equipped||[]).find(e=>ITEMS[e]?.type==="weapon"):null;
+  const eqArmor=me?(me.equipped||[]).find(e=>ITEMS[e]?.type==="armor"):null;
+  const escortNPC=gmPuppet?.mode==="escort"?npcPlayers.find(n=>n.id===gmPuppet.npcId):null;
+
+  // ══ CREATE SCREEN ══
+  if(screen==="create")return(
+    <div style={{minHeight:"100vh",background:"#050402",color:"#d4b896",fontFamily:"Georgia,serif",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <style>{`@keyframes flicker{0%,100%{opacity:1}50%{opacity:.85}}@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}button:hover{opacity:0.75!important;}::-webkit-scrollbar{width:4px;}::-webkit-scrollbar-thumb{background:#2a1e0a;}`}</style>
+      <div style={{maxWidth:640,width:"100%"}}>
+        <div style={{textAlign:"center",marginBottom:36}}>
+          <div style={{fontSize:52,animation:"float 3s infinite",marginBottom:12}}>⚔️</div>
+          <div style={{fontSize:28,color:"#e8aa44",letterSpacing:4,textTransform:"uppercase",animation:"flicker 3s infinite"}}>Realm of Etherion</div>
+          <div style={{fontSize:11,color:"#5a4030",letterSpacing:3,marginTop:6}}>v5 · DUNGEONS · PARTIES · MYTHIC GEAR · GM PANEL</div>
+        </div>
+        <div style={{background:"#110e08",border:"1px solid #2a1e0a",borderRadius:8,padding:28}}>
+          <div style={{marginBottom:20}}>
+            <div style={{fontSize:10,color:"#5a4030",letterSpacing:2,marginBottom:8}}>NAME <span style={{color:"#3a3028",fontSize:9}}>(use "Cei" for GM panel)</span></div>
+            <input value={playerName} onChange={e=>setPlayerName(e.target.value)} maxLength={20} style={{...sinp(),width:"100%",boxSizing:"border-box",padding:"10px 14px",fontSize:14}}/>
+          </div>
+          <div style={{marginBottom:24}}>
+            <div style={{fontSize:10,color:"#5a4030",letterSpacing:2,marginBottom:12}}>CHOOSE CLASS</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
+              {Object.entries(CLASSES).map(([name,data])=>(
+                <div key={name} onClick={()=>setPlayerClass(name)} style={{background:playerClass===name?"#1e1608":"#0a0804",border:"1px solid "+(playerClass===name?"#e8aa44":"#2a1e0a"),borderRadius:6,padding:"14px 10px",cursor:"pointer",textAlign:"center"}}>
+                  <div style={{fontSize:24,marginBottom:6}}>{data.icon}</div>
+                  <div style={{fontSize:12,color:playerClass===name?"#e8aa44":"#d4b896",fontWeight:"bold"}}>{name}</div>
+                  <div style={{fontSize:9,color:"#5a4030",marginTop:4}}>HP {data.hp} · SPD {data.spd}</div>
+                  <div style={{fontSize:9,color:"#7a6050",marginTop:2}}>{data.ability}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+          {playerClass&&(
+            <div style={{background:"#0a0804",border:"1px solid #2a1e0a",borderRadius:4,padding:14,marginBottom:14,fontSize:12,color:"#7a6050"}}>
+              <div><span style={{color:"#e8aa44"}}>Ability: </span>{CLASSES[playerClass].ability} — {CLASSES[playerClass].abilityDesc} ({CLASSES[playerClass].abilityCost} MP)</div>
+              <div style={{marginTop:6,fontSize:11,color:"#5a5040",borderTop:"1px solid #2a1e0a",paddingTop:6}}><span style={{color:"#aa88ff"}}>Class Quest: </span>{CLASS_QUESTS[playerClass]?.name} — {CLASS_QUESTS[playerClass]?.desc}</div>
+            </div>
+          )}
+          <button onClick={startGame} style={{width:"100%",background:"rgba(232,170,68,0.1)",border:"1px solid #e8aa44",color:"#e8aa44",borderRadius:4,padding:14,fontSize:14,cursor:"pointer",letterSpacing:3,fontFamily:"Georgia,serif",marginBottom:hasSave?12:0}}>⚔ BEGIN YOUR LEGEND</button>
+          {hasSave&&<button onClick={loadGame} style={{width:"100%",background:"rgba(61,214,140,0.08)",border:"1px solid #3dd68c",color:"#3dd68c",borderRadius:4,padding:12,fontSize:13,cursor:"pointer",letterSpacing:2,fontFamily:"monospace"}}>📂 CONTINUE SAVED GAME</button>}
+        </div>
+      </div>
+    </div>
+  );
+
+  // ══ GAME SCREEN ══
+  return(
+    <div style={{minHeight:"100vh",background:regData.bg,color:"#d4b896",fontFamily:"Georgia,serif",fontSize:13}}>
+      <style>{`
+        @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+        @keyframes slideUp{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
+        @keyframes slideIn{from{transform:translateX(16px);opacity:0}to{transform:translateX(0);opacity:1}}
+        @keyframes glow{0%,100%{box-shadow:0 0 8px ${regData.accent}44}50%{box-shadow:0 0 22px ${regData.accent}99}}
+        @keyframes deathIn{from{opacity:0;transform:scale(0.9)}to{opacity:1;transform:scale(1)}}
+        @keyframes lvlUp{0%{transform:scale(0.7);opacity:0}60%{transform:scale(1.07)}100%{transform:scale(1);opacity:1}}
+        @keyframes floatY{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+        @keyframes achSlide{0%{transform:translateX(110%)}10%{transform:translateX(-3%)}18%{transform:translateX(0)}85%{transform:translateX(0)}100%{transform:translateX(110%)}}
+        button:hover{opacity:0.75!important;}
+        ::-webkit-scrollbar{width:4px;height:4px;}::-webkit-scrollbar-thumb{background:#2a1e0a;}
+        .gm-side::-webkit-scrollbar-thumb{background:#1a2535;}
+        @media(max-width:900px){.split{flex-direction:column!important;}}
+      `}</style>
+
+      {notification&&<div style={{position:"fixed",top:14,right:14,background:"rgba(0,0,0,0.95)",border:"1px solid "+notification.color,color:notification.color,padding:"11px 18px",borderRadius:6,fontSize:13,zIndex:9999,animation:"slideIn 0.2s ease",letterSpacing:1,maxWidth:"calc(100vw - 28px)"}}>{notification.msg}</div>}
+      {newAchievement&&<div style={{position:"fixed",top:60,right:0,background:"rgba(0,0,0,0.96)",border:"1px solid #e8aa44",borderRight:"none",color:"#e8aa44",padding:"10px 18px",borderRadius:"6px 0 0 6px",zIndex:9998,animation:"achSlide 4.5s ease forwards",pointerEvents:"none"}}><div style={{fontSize:9,letterSpacing:2,color:"#5a4030",marginBottom:2}}>ACHIEVEMENT</div><div style={{fontSize:14}}>{ACHIEVEMENTS_DEF.find(a=>a.id===newAchievement.id)?.icon||"🏅"} {newAchievement.name}</div></div>}
+      {announcement&&<div style={{position:"fixed",top:0,left:0,right:0,background:"rgba(0,0,0,0.97)",borderBottom:"3px solid "+announcement.color,padding:"14px 20px",zIndex:9997,display:"flex",alignItems:"center",gap:12}}><span style={{fontSize:26}}>{announcement.icon}</span><div style={{flex:1,fontSize:14,color:announcement.color,letterSpacing:1}}>{announcement.text}</div><button onClick={()=>setAnnouncement(null)} style={{background:"none",border:"1px solid "+announcement.color,color:announcement.color,padding:"3px 10px",borderRadius:3,cursor:"pointer",fontSize:12}}>✕</button></div>}
+      {whisper&&<div style={{position:"fixed",bottom:80,left:14,background:"rgba(0,0,0,0.97)",border:"1px solid "+whisper.color,color:whisper.color,padding:"12px 16px",borderRadius:6,zIndex:9996,maxWidth:300,animation:"slideUp 0.3s ease"}}><div style={{fontSize:9,letterSpacing:2,marginBottom:5,color:"#5a4030"}}>📨 WHISPER FROM GM</div><div style={{fontSize:13,lineHeight:1.5}}>{whisper.msg}</div><button onClick={()=>setWhisper(null)} style={{marginTop:8,background:"none",border:"1px solid "+whisper.color+"44",color:whisper.color,padding:"2px 8px",borderRadius:2,cursor:"pointer",fontSize:10,width:"100%"}}>Close</button></div>}
+
+      {deathScreen&&<div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.97)",zIndex:10000,display:"flex",alignItems:"center",justifyContent:"center",animation:"deathIn 0.5s ease"}}><div style={{textAlign:"center",maxWidth:380}}><div style={{fontSize:80,animation:"floatY 2s infinite",marginBottom:16}}>💀</div><div style={{fontSize:36,color:"#ff3322",letterSpacing:6,fontWeight:"bold",marginBottom:8}}>YOU DIED</div><div style={{fontSize:14,color:"#7a5040",marginBottom:28}}>Slain by <span style={{color:"#ff6644"}}>{deathScreen.killer}</span> in {deathScreen.region}</div><div style={{background:"rgba(255,50,30,0.06)",border:"1px solid #3a1808",borderRadius:8,padding:20,marginBottom:24}}>{[["Level",deathScreen.level],["Kills",deathScreen.kills],["Gold lost","-"+deathScreen.goldLost+"g"]].map(([k,v])=><div key={k} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid #2a1208",fontSize:13}}><span style={{color:"#5a4030"}}>{k}</span><span style={{color:k==="Gold lost"?"#ff5533":"#d4b896",fontWeight:"bold"}}>{v}</span></div>)}</div><button onClick={()=>setDeathScreen(null)} style={{background:"rgba(255,50,30,0.1)",border:"1px solid #ff3322",color:"#ff3322",padding:"12px 40px",borderRadius:4,cursor:"pointer",fontSize:15,fontFamily:"Georgia,serif",letterSpacing:3}}>⚔ RESPAWN</button></div></div>}
+      {levelUpInfo&&<div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.92)",zIndex:10000,display:"flex",alignItems:"center",justifyContent:"center"}}><div style={{textAlign:"center",maxWidth:360,animation:"lvlUp 0.5s ease"}}><div style={{fontSize:72,animation:"floatY 1.5s infinite",marginBottom:12}}>⬆️</div><div style={{fontSize:11,color:"#e8aa44",letterSpacing:5,marginBottom:4}}>LEVEL UP!</div><div style={{fontSize:44,color:"#e8aa44",fontWeight:"bold",marginBottom:20,textShadow:"0 0 30px #e8aa44"}}>Level {levelUpInfo.newLevel}</div><div style={{background:"rgba(232,170,68,0.06)",border:"1px solid #2a1e0a",borderRadius:8,padding:20,marginBottom:24}}>{[["❤️ Max HP","+"+levelUpInfo.hpGain],["⚔️ ATK","+"+levelUpInfo.atkGain],["✨ MAG","+"+levelUpInfo.magGain],["💧 Mana","+"+levelUpInfo.manaGain],["🌟 SP","+1"]].map(([k,v])=><div key={k} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:"1px solid #1a1208",fontSize:13}}><span style={{color:"#7a6050"}}>{k}</span><span style={{color:"#ffd700",fontWeight:"bold"}}>{v}</span></div>)}</div><button onClick={()=>setLevelUpInfo(null)} style={{background:"rgba(232,170,68,0.12)",border:"1px solid #e8aa44",color:"#e8aa44",padding:"12px 40px",borderRadius:4,cursor:"pointer",fontSize:15,fontFamily:"Georgia,serif",letterSpacing:3}}>CONTINUE</button></div></div>}
+      {dungeonComplete&&<div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.92)",zIndex:10000,display:"flex",alignItems:"center",justifyContent:"center",animation:"lvlUp 0.4s ease"}}><div style={{textAlign:"center",maxWidth:360}}><div style={{fontSize:72,animation:"floatY 2s infinite",marginBottom:12}}>🏆</div><div style={{fontSize:13,color:"#e8aa44",letterSpacing:4,marginBottom:6}}>DUNGEON CLEARED!</div><div style={{fontSize:26,color:"#e8aa44",fontWeight:"bold",marginBottom:20}}>{dungeonComplete.name}</div><div style={{background:"rgba(232,170,68,0.06)",border:"1px solid #2a1e0a",borderRadius:8,padding:20,marginBottom:24}}><div style={{fontSize:16,color:"#ffd700",fontWeight:"bold"}}>💰 {dungeonComplete.reward.toLocaleString()} gold</div></div><button onClick={()=>setDungeonComplete(null)} style={{background:"rgba(232,170,68,0.12)",border:"1px solid #e8aa44",color:"#e8aa44",padding:"12px 40px",borderRadius:4,cursor:"pointer",fontSize:15,fontFamily:"Georgia,serif",letterSpacing:3}}>CLAIM</button></div></div>}
+
+      <div className="split" style={{display:"flex",minHeight:"100vh"}}>
+        {/* PLAYER SIDE */}
+        <div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",borderRight:"1px solid #2a1e0a"}}>
+          {/* Top nav */}
+          <div style={{background:"rgba(0,0,0,0.55)",borderBottom:"1px solid #2a1e0a",padding:"10px 16px",display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+            <div style={{fontSize:13,color:regData.accent,fontWeight:"bold",flex:1,minWidth:100}}>{wIcon} {region} {tIcon}{isNight&&<span style={{fontSize:10,color:"#7744cc",marginLeft:6}}>🌙</span>}</div>
+            <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+              {[["world","🌍"],["inventory","🎒"],["quests","📋"],["map","🗺️"],["shop","🛍️"],["achieve","🏅"]].map(([v,ic])=>(
+                <Btn key={v} onClick={()=>gameView!=="combat"&&setGameView(v)} style={{background:"none",border:"1px solid "+(gameView===v?regData.accent:"#2a1e0a"),color:gameView===v?regData.accent:"#5a4030",padding:"4px 8px",borderRadius:3,fontSize:10}}>{ic}</Btn>
+              ))}
+              {dungeon&&<Btn onClick={()=>setGameView("dungeon")} style={{background:"rgba(232,170,68,0.1)",border:"1px solid #e8aa44",color:"#e8aa44",padding:"4px 8px",borderRadius:3,fontSize:10,animation:"pulse 2s infinite"}}>🏰</Btn>}
+            </div>
+            {isGM&&<Btn onClick={()=>setGmOpen(v=>!v)} style={{background:gmOpen?"rgba(61,214,140,0.15)":"rgba(61,214,140,0.05)",border:"1px solid #3dd68c",color:"#3dd68c",padding:"5px 12px",borderRadius:3,fontSize:11,fontFamily:"monospace",letterSpacing:2,animation:"pulse 2s infinite"}}>{gmOpen?"◀ GM":"GM ▶"}</Btn>}
+          </div>
+
+          {/* Player HUD */}
+          {me&&(
+            <div style={{background:"rgba(0,0,0,0.45)",borderBottom:"1px solid #1a1208",padding:"10px 16px"}}>
+              <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
+                <div style={{textAlign:"center",flexShrink:0}}><div style={{fontSize:24}}>{clsData?.icon}</div>{party&&<div style={{fontSize:14,marginTop:-4}}>{party.icon}</div>}</div>
+                <div style={{flex:"0 0 auto"}}>
+                  <div style={{fontSize:13,color:regData.accent,fontWeight:"bold"}}>{me.name} <span style={{color:"#5a4030",fontSize:11}}>Lv.{me.level}</span></div>
+                  <div style={{fontSize:10,color:"#5a4030"}}>{me.cls} · {me.kills} kills{skillPoints>0&&<span style={{color:"#aa88ff"}}> · {skillPoints}SP</span>}</div>
+                  {party&&<div style={{fontSize:10,color:"#55cc66",marginTop:2}}>🤝 {party.name} HP:{party.hp}/{party.maxHp}</div>}
+                  <div style={{display:"flex",gap:4,marginTop:3,flexWrap:"wrap"}}>
+                    {poisoned&&<span style={{fontSize:9,border:"1px solid #44aa22",color:"#88ff44",padding:"0 4px",borderRadius:2}}>☠ PSN</span>}
+                    {shielded&&<span style={{fontSize:9,border:"1px solid #2255cc",color:"#4488ff",padding:"0 4px",borderRadius:2}}>🛡 BLOCK</span>}
+                    {rageTurns>0&&<span style={{fontSize:9,border:"1px solid #cc2200",color:"#ff4422",padding:"0 4px",borderRadius:2}}>🔴 RAGE×{rageTurns}</span>}
+                    {hasteBonus>0&&<span style={{fontSize:9,border:"1px solid #2288aa",color:"#44ccff",padding:"0 4px",borderRadius:2}}>💨 HASTE</span>}
+                  </div>
+                </div>
+                <div style={{flex:1,minWidth:140}}>
+                  <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"#5a4030",marginBottom:2}}><span>❤️ {me.hp}/{me.maxHp}</span><span style={{fontSize:9,color:me.hp<me.maxHp*0.25?"#ff4444":"#5a4030"}}>{Math.round((me.hp/me.maxHp)*100)}%</span></div>
+                  <Bar val={me.hp} max={me.maxHp} color={me.hp<me.maxHp*0.25?"#ff5533":me.hp<me.maxHp*0.5?"#e8aa44":"#55cc66"}/>
+                  {party&&(<><div style={{fontSize:9,color:"#5a6040",marginTop:3,marginBottom:2}}>{party.name}: {party.hp}/{party.maxHp}</div><Bar val={party.hp} max={party.maxHp} color="#44cc88" h={4}/></>)}
+                  <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"#5a4030",marginTop:4,marginBottom:2}}><span>💧 {me.mana}/{me.maxMana}</span><span style={{fontSize:9,color:"#3a6080"}}>+5/turn</span></div>
+                  <Bar val={me.mana} max={me.maxMana} color="#4488ff" h={5}/>
+                  <div style={{fontSize:10,color:"#5a4030",marginTop:3,marginBottom:2}}>⭐ {me.xp}/{me.xpNext}</div>
+                  <Bar val={me.xp} max={me.xpNext} color="#aa44ff" h={4}/>
+                </div>
+                <div style={{textAlign:"right",flexShrink:0}}>
+                  <div style={{fontSize:13,color:"#ffd700",fontWeight:"bold"}}>💰 {me.gold.toLocaleString()}g</div>
+                  {eqWeapon&&<div style={{fontSize:9,color:regData.accent,marginTop:3}}>{ITEMS[eqWeapon]?.icon} {eqWeapon}</div>}
+                  {eqArmor&&<div style={{fontSize:9,color:"#4488aa"}}>{ITEMS[eqArmor]?.icon} {eqArmor}</div>}
+                  <div style={{fontSize:9,color:"#3a5030",marginTop:2}}>Dodge {dodgePct}%</div>
+                </div>
+              </div>
+              {(activeEvents.length>0||gmBounties.some(b=>!b.done))&&(
+                <div style={{marginTop:8,display:"flex",gap:6,flexWrap:"wrap"}}>
+                  {activeEvents.map(evId=>{const ev=WORLD_EVENTS.find(e=>e.id===evId)||{id:evId,name:evId,icon:"⚡",color:"#44ffcc"};return<span key={evId} style={{fontSize:10,padding:"2px 8px",background:ev.color+"22",border:"1px solid "+ev.color+"55",color:ev.color,borderRadius:3}}>{ev.icon} {ev.name} {eventTimers[evId]||0}s</span>;})}
+                  {gmBounties.filter(b=>!b.done).map(b=><span key={b.id} style={{fontSize:10,padding:"2px 8px",background:"rgba(255,215,0,0.1)",border:"1px solid #aa8800",color:"#ffd700",borderRadius:3}}>📋 {b.name}: {b.progress||0}/{b.goal}</span>)}
+                </div>
+              )}
+            </div>
+          )}
+
+          <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+
+            {/* WORLD VIEW */}
+            {gameView==="world"&&(
+              <div style={{flex:1,padding:16,overflowY:"auto"}}>
+                <div style={{background:"rgba(0,0,0,0.3)",border:"1px solid #2a1e0a",borderRadius:6,padding:18,marginBottom:14,animation:"slideUp 0.3s ease"}}>
+                  <div style={{fontSize:14,color:regData.accent,marginBottom:6,letterSpacing:2}}>📍 {region}</div>
+                  <div style={{fontSize:12,color:"#9a8070",lineHeight:1.6,marginBottom:8}}>{regData.desc}</div>
+                  <div style={{fontSize:11,color:"#5a4030",marginBottom:6}}>{"⚠️ "+"★".repeat(regData.danger)+" · "+regData.mobs.join(", ")}</div>
+                  <div style={{fontSize:10,padding:"4px 8px",background:"rgba(0,0,0,0.3)",borderRadius:3,color:"#5a6070",borderLeft:"2px solid #4a5a30"}}>{wIcon} {wfx.label}</div>
+                  {isNight&&<div style={{marginTop:5,fontSize:10,padding:"4px 8px",background:"rgba(40,0,80,0.3)",borderRadius:3,color:"#8855cc",borderLeft:"2px solid #6633aa"}}>🌙 Night: +20% enemy ATK · +50% XP</div>}
+                  {escortNPC&&<div style={{marginTop:5,fontSize:10,padding:"4px 8px",background:"rgba(61,214,140,0.05)",borderRadius:3,color:"#3dd68c",borderLeft:"2px solid #3dd68c"}}>🤝 GM escort: {escortNPC.name} walks with you.</div>}
+                </div>
+                <div style={{display:"flex",gap:8,marginBottom:14}}>
+                  <Btn onClick={explore} disabled={exploring||resting} style={{flex:3,background:"rgba("+regData.accent.replace("#","").match(/.{2}/g).map(h=>parseInt(h,16)).join(",")+ ",0.08)",border:"1px solid "+(exploring||resting?"#2a1e0a":regData.accent),color:exploring||resting?"#5a4030":regData.accent,padding:14,borderRadius:4,fontSize:14,letterSpacing:2,fontFamily:"Georgia,serif",animation:(!exploring&&!resting)?"glow 2s infinite":"none"}}>{exploring?"⏳ Exploring...":"⚔️ EXPLORE"}</Btn>
+                  <Btn onClick={rest} disabled={resting||exploring||!me} style={{flex:1,background:"rgba(85,204,102,0.06)",border:"1px solid "+(resting?"#2a1e0a":"#55cc66"),color:resting?"#5a4030":"#55cc66",padding:14,borderRadius:4,fontSize:12,fontFamily:"Georgia,serif"}}>{resting?"⏳":"⛺"} Rest</Btn>
+                  <Btn onClick={enterDungeon} disabled={!!dungeon} style={{flex:1,background:"rgba(232,170,68,0.06)",border:"1px solid "+(dungeon?"#2a1e0a":"#e8aa44"),color:dungeon?"#5a4030":"#e8aa44",padding:14,borderRadius:4,fontSize:12,fontFamily:"Georgia,serif"}}>🏰 Dungeon</Btn>
+                </div>
+                {PARTY_RECRUITS[region]&&(
+                  <div style={{background:"rgba(0,0,0,0.2)",border:"1px solid #55cc6633",borderRadius:4,padding:12,marginBottom:12}}>
+                    <div style={{fontSize:10,color:"#55cc66",letterSpacing:2,marginBottom:8}}>RECRUIT AVAILABLE</div>
+                    {party?(
+                      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                        <div style={{fontSize:12}}>{party.icon} {party.name} <span style={{color:"#5a4030",fontSize:11}}>HP {party.hp}/{party.maxHp} · ATK {party.atk}</span></div>
+                        <Btn onClick={dismissParty} style={{background:"none",border:"1px solid #ff5533",color:"#ff5533",padding:"3px 8px",borderRadius:3,fontSize:10}}>Dismiss</Btn>
+                      </div>
+                    ):(
+                      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                        <div style={{fontSize:12}}>{PARTY_RECRUITS[region].icon} {PARTY_RECRUITS[region].name} <span style={{color:"#5a4030",fontSize:11}}>ATK {PARTY_RECRUITS[region].atk}</span></div>
+                        <Btn onClick={recruitParty} disabled={!me||me.gold<PARTY_RECRUITS[region].cost} style={{background:"rgba(85,204,102,0.08)",border:"1px solid "+(me&&me.gold>=PARTY_RECRUITS[region].cost?"#55cc66":"#2a2a1a"),color:me&&me.gold>=PARTY_RECRUITS[region].cost?"#55cc66":"#5a4030",padding:"4px 10px",borderRadius:3,fontSize:11}}>Recruit {PARTY_RECRUITS[region].cost}g</Btn>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {npcPlayers.filter(n=>n.region===region&&n.status==="online").length>0&&(
+                  <div style={{background:"rgba(0,0,0,0.2)",border:"1px solid #1a1208",borderRadius:4,padding:12,marginBottom:12}}>
+                    <div style={{fontSize:10,color:"#5a4030",letterSpacing:2,marginBottom:8}}>NEARBY PLAYERS {pvpEnabled&&<span style={{color:"#ff2244"}}>· PvP ON</span>}</div>
+                    {npcPlayers.filter(n=>n.region===region&&n.status==="online").map(n=>(
+                      <div key={n.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
+                        <span style={{fontSize:12,color:"#9a8070"}}><span style={{color:"#55cc66"}}>●</span> {n.name} · Lv.{n.level} {n.cls}</span>
+                        {pvpEnabled&&<Btn onClick={()=>{const nc=CLASSES[n.cls];const lm=n.level/50+0.5;const e={name:n.name,icon:nc.icon,hp:Math.round(nc.hp*lm),maxHp:Math.round(nc.hp*lm),atk:Math.round(nc.atk*lm),xp:n.level*40,gold:n.level*15,desc:"PvP",pvp:true};setEncounter({enemies:[e]});setGameView("combat");setCombatTurn("player");setSelectedTargetIdx(0);gLog("PvP: "+n.name+"!","system");}} style={{background:"rgba(255,34,68,0.1)",border:"1px solid #ff2244",color:"#ff2244",padding:"3px 8px",borderRadius:3,fontSize:10}}>⚔️</Btn>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {me&&healItems.length>0&&(
+                  <div style={{background:"rgba(0,0,0,0.2)",border:"1px solid #1a1208",borderRadius:4,padding:10,marginBottom:12}}>
+                    <div style={{fontSize:10,color:"#5a4030",letterSpacing:2,marginBottom:6}}>QUICK USE</div>
+                    <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+                      {[...new Set(healItems)].map(item=><Btn key={item} onClick={()=>useItem(item)} style={{background:"rgba(0,0,0,0.4)",border:"1px solid #2a1e0a",color:"#d4b896",padding:"4px 9px",borderRadius:3,fontSize:11}}>{ITEMS[item]?.icon} {item}</Btn>)}
+                    </div>
+                  </div>
+                )}
+                {gmBounties.length>0&&(
+                  <div style={{background:"rgba(255,215,0,0.04)",border:"1px solid #aa8800",borderRadius:4,padding:12,marginBottom:12}}>
+                    <div style={{fontSize:10,color:"#ffd700",letterSpacing:2,marginBottom:8}}>📋 BOUNTIES</div>
+                    {gmBounties.map(b=>(
+                      <div key={b.id} style={{background:"rgba(0,0,0,0.2)",borderRadius:3,padding:"8px 10px",marginBottom:6,border:"1px solid "+(b.done?"#ffd70055":"#aa880033")}}>
+                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
+                          <div style={{fontSize:12,color:b.done?"#ffd700":"#d4b896"}}>{b.done?"✅ ":""}{b.name}</div>
+                          {b.done&&<Btn onClick={()=>claimBounty(b)} style={{background:"rgba(255,215,0,0.15)",border:"1px solid #ffd700",color:"#ffd700",padding:"3px 8px",borderRadius:3,fontSize:10}}>CLAIM</Btn>}
+                        </div>
+                        <div style={{fontSize:10,color:"#5a4030",marginBottom:4}}>{b.desc}</div>
+                        {b.progress!==undefined&&!b.done&&<><div style={{fontSize:10,color:"#aa8800",marginBottom:2}}>{b.progress||0}/{b.goal}</div><Bar val={b.progress||0} max={b.goal} color="#ffd700" h={4}/></>}
+                        <div style={{fontSize:10,color:"#5a6040",marginTop:4}}>Reward: {b.rewardType==="gold"?b.rewardGold+"g":b.rewardType==="item"?b.rewardItem:"+1 SP"}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* COMBAT VIEW */}
+            {gameView==="combat"&&encounter&&(
+              <div style={{flex:1,padding:16,overflowY:"auto",animation:"slideUp 0.2s ease"}}>
+                <div style={{fontSize:12,color:"#ff5533",letterSpacing:2,marginBottom:12,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <span>⚔️ COMBAT {encounter.enemies[0]?.pvp?"· PvP":""}</span>
+                  <span style={{fontSize:10,color:"#5a4030"}}>{combatTurn==="player"?"Your turn":"Enemy attacking..."}</span>
+                </div>
+                {/* Enemies */}
+                <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}>
+                  {encounter.enemies.map((enemy,i)=>(
+                    <div key={i} onClick={()=>encounter.enemies.length>1&&setSelectedTargetIdx(i)} style={{flex:1,minWidth:140,background:"rgba(0,0,0,0.4)",border:"2px solid "+(i===selectedTargetIdx?"#ff5533":"#2a1e0a"),borderRadius:6,padding:14,cursor:encounter.enemies.length>1?"pointer":"default",transition:"border-color 0.2s"}}>
+                      {encounter.enemies.length>1&&<div style={{fontSize:9,color:i===selectedTargetIdx?"#ff5533":"#5a4030",marginBottom:4,letterSpacing:2}}>{i===selectedTargetIdx?"🎯 TARGET":""}</div>}
+                      <div style={{fontSize:32,marginBottom:8,textAlign:"center",animation:enemy.hp<enemy.maxHp*0.3?"bossShake 0.5s infinite":""}}>{enemy.icon||"👹"}</div>
+                      <div style={{fontSize:12,color:"#d4b896",fontWeight:"bold",textAlign:"center",marginBottom:6}}>{enemy.name}{enemy.boss&&<span style={{fontSize:9,color:"#ff4433",marginLeft:4}}>⚠️ BOSS</span>}</div>
+                      <div style={{fontSize:10,color:"#5a4030",textAlign:"center",marginBottom:6}}>ATK {enemy.atk}</div>
+                      <div style={{fontSize:10,color:"#5a4030",marginBottom:4}}>HP {enemy.hp}/{enemy.maxHp}</div>
+                      <Bar val={enemy.hp} max={enemy.maxHp} color={enemy.hp<enemy.maxHp*0.3?"#ff5533":enemy.hp<enemy.maxHp*0.6?"#e8aa44":"#55cc66"}/>
+                      <div style={{marginTop:6,display:"flex",gap:4,flexWrap:"wrap"}}>
+                        {enemy.poisoned&&<span style={{fontSize:9,color:"#88ff44",border:"1px solid #44aa22",padding:"0 3px",borderRadius:2}}>☠</span>}
+                        {enemy.blinded&&<span style={{fontSize:9,color:"#aaaaff",border:"1px solid #4444aa",padding:"0 3px",borderRadius:2}}>👁</span>}
+                        {enemy.weakened&&<span style={{fontSize:9,color:"#ffaa44",border:"1px solid #aa6622",padding:"0 3px",borderRadius:2}}>💢</span>}
+                        {enemy.frozen&&<span style={{fontSize:9,color:"#88ddff",border:"1px solid #2288aa",padding:"0 3px",borderRadius:2}}>❄️</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {/* Combat actions */}
+                {combatTurn==="player"&&(
+                  <div style={{marginBottom:14}}>
+                    <div style={{display:"flex",gap:8,marginBottom:8,flexWrap:"wrap"}}>
+                      <Btn onClick={()=>playerAttack("attack")} style={{flex:2,background:"rgba(232,170,68,0.1)",border:"1px solid #e8aa44",color:"#e8aa44",padding:"12px",borderRadius:4,fontSize:13,fontFamily:"Georgia,serif"}}>⚔️ Attack</Btn>
+                      <Btn onClick={()=>playerAttack("ability")} disabled={me&&me.mana<(clsData?.abilityCost||0)} style={{flex:2,background:"rgba(170,68,255,0.1)",border:"1px solid "+(me&&me.mana>=(clsData?.abilityCost||0)?"#aa44ff":"#3a2050"),color:me&&me.mana>=(clsData?.abilityCost||0)?"#aa44ff":"#4a3060",padding:"12px",borderRadius:4,fontSize:12,fontFamily:"Georgia,serif"}}>{clsData?.ability||"Ability"} ({clsData?.abilityCost}MP)</Btn>
+                    </div>
+                    <div style={{display:"flex",gap:8}}>
+                      <Btn onClick={()=>setCombatItemOpen(v=>!v)} disabled={!hasAnyItems} style={{flex:2,background:"rgba(68,136,255,0.1)",border:"1px solid "+(hasAnyItems?"#4488ff":"#1a2040"),color:hasAnyItems?"#4488ff":"#2a3060",padding:10,borderRadius:4,fontSize:12}}>🧪 Items {hasAnyItems&&"("+me.inventory.filter(i=>ITEMS[i]?.type==="consumable"||ITEMS[i]?.type==="offensive").length+")"}</Btn>
+                      <Btn onClick={()=>playerAttack("flee")} style={{flex:1,background:"rgba(90,64,48,0.2)",border:"1px solid #5a4030",color:"#7a6050",padding:10,borderRadius:4,fontSize:12}}>💨 Flee</Btn>
+                    </div>
+                    {combatItemOpen&&(
+                      <div style={{marginTop:10,background:"rgba(0,0,0,0.4)",border:"1px solid #2a1e0a",borderRadius:4,padding:10}}>
+                        {healItems.length>0&&<><div style={{fontSize:10,color:"#5a4030",letterSpacing:2,marginBottom:6}}>HEAL</div><div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:10}}>{[...new Set(healItems)].map(item=><Btn key={item} onClick={()=>useItem(item)} style={{background:"rgba(85,204,102,0.08)",border:"1px solid #2a3a2a",color:"#d4b896",padding:"5px 9px",borderRadius:3,fontSize:11}}>{ITEMS[item]?.icon} {item}</Btn>)}</div></>}
+                        {offItems.length>0&&<><div style={{fontSize:10,color:"#5a4030",letterSpacing:2,marginBottom:6}}>OFFENSIVE</div><div style={{display:"flex",flexWrap:"wrap",gap:5}}>{[...new Set(offItems)].map(item=><Btn key={item} onClick={()=>useOffensiveItem(item)} style={{background:"rgba(255,80,50,0.08)",border:"1px solid #3a2a1a",color:"#d4b896",padding:"5px 9px",borderRadius:3,fontSize:11}}>{ITEMS[item]?.icon} {item}</Btn>)}</div></>}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {combatTurn==="enemy"&&<div style={{padding:14,textAlign:"center",color:"#5a4030",fontSize:12,animation:"pulse 0.8s infinite"}}>Enemy attacking...</div>}
+                {me&&<div style={{marginTop:4,padding:"6px 0",borderTop:"1px solid #2a1e0a",fontSize:11,color:"#5a4030",display:"flex",gap:12}}><span>ATK {me.atk}</span><span>MAG {me.mag}</span><span>Dodge {dodgePct}%</span><span>HP {me.hp}/{me.maxHp}</span></div>}
+              </div>
+            )}
+
+            {/* DUNGEON VIEW */}
+            {gameView==="dungeon"&&dungeon&&(
+              <div style={{flex:1,padding:16,overflowY:"auto"}}>
+                <div style={{fontSize:14,color:"#e8aa44",marginBottom:4,letterSpacing:2}}>🏰 {dungeon.name}</div>
+                <div style={{fontSize:11,color:"#5a4030",marginBottom:14}}>Room {Math.min(dungeon.roomIdx+1,dungeon.rooms.length)}/{dungeon.rooms.length} · Reward: {dungeon.reward.toLocaleString()}g</div>
+                {dungeon.rooms.map((room,i)=>{
+                  const isCurrent=i===dungeon.roomIdx;const locked=i>dungeon.roomIdx;
+                  const icons={combat:"⚔️",boss:"💀",treasure:"💎",rest:"⛺"};
+                  const colors={combat:"#3a2a1a",boss:"#3a0808",treasure:"#2a3a1a",rest:"#1a2a1a"};
+                  const ac={combat:"#e8aa44",boss:"#ff4433",treasure:"#ffd700",rest:"#55cc66"};
+                  return(
+                    <div key={room.id} onClick={()=>isCurrent&&!room.done&&enterDungeonRoom(room)} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",marginBottom:8,background:room.done?"rgba(0,0,0,0.1)":locked?"rgba(0,0,0,0.1)":colors[room.type],border:"1px solid "+(isCurrent&&!room.done?ac[room.type]:"#2a1e0a"),borderRadius:4,cursor:isCurrent&&!room.done?"pointer":"default",opacity:locked?0.4:1,transition:"all 0.2s"}}>
+                      <div style={{fontSize:24,minWidth:32,textAlign:"center"}}>{room.done?"✅":locked?"🔒":icons[room.type]}</div>
+                      <div style={{flex:1}}>
+                        <div style={{fontSize:12,color:room.done?"#5a4030":isCurrent?ac[room.type]:"#7a6050",fontWeight:isCurrent?"bold":"normal"}}>Room {i+1}: {room.type==="boss"?"⚠️ BOSS — "+dungeon.boss:room.type.charAt(0).toUpperCase()+room.type.slice(1)}</div>
+                        {isCurrent&&!room.done&&<div style={{fontSize:10,color:"#5a4030",marginTop:2}}>Click to enter</div>}
+                      </div>
+                      {isCurrent&&!room.done&&<span style={{fontSize:20,color:ac[room.type]}}>→</span>}
+                    </div>
+                  );
+                })}
+                <Btn onClick={()=>{setDungeon(null);dungeonRef.current=null;setGameView("world");gLog("Left the dungeon.","warn");}} style={{width:"100%",marginTop:8,background:"rgba(90,64,48,0.2)",border:"1px solid #5a4030",color:"#7a6050",padding:10,borderRadius:4,fontSize:12}}>⬅ Abandon Dungeon</Btn>
+              </div>
+            )}
+
+            {/* MAP VIEW */}
+            {gameView==="map"&&(
+              <div style={{flex:1,padding:16,overflowY:"auto"}}>
+                <div style={{fontSize:10,color:"#5a4030",letterSpacing:2,marginBottom:12}}>WORLD MAP — FAST TRAVEL</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                  {Object.entries(REGIONS).map(([name,data])=>{
+                    const locked=lockedRegions.includes(name);const req=data.minLevel||1;
+                    const tooLow=me&&me.level<req;const isCurrent=region===name;
+                    return(
+                      <div key={name} onClick={()=>!locked&&!tooLow&&travelTo(name)} style={{background:"rgba(0,0,0,0.3)",border:"2px solid "+(isCurrent?data.accent:locked?"#5a1a1a":tooLow?"#2a2a1a":"#2a1e0a"),borderRadius:6,padding:"12px 14px",cursor:(locked||tooLow)?"not-allowed":"pointer",opacity:locked||tooLow?0.6:1,transition:"border-color 0.2s"}}>
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                          <div style={{fontSize:12,color:isCurrent?data.accent:locked?"#5a3030":tooLow?"#5a5a30":"#d4b896",fontWeight:isCurrent?"bold":"normal"}}>{name}</div>
+                          <div style={{fontSize:10,color:"#5a4030"}}>{"★".repeat(data.danger)}</div>
+                        </div>
+                        <div style={{fontSize:10,color:"#5a4030",marginBottom:3}}>Lv.{req}+ req</div>
+                        {isCurrent&&<div style={{fontSize:9,color:data.accent,letterSpacing:2}}>📍 YOU ARE HERE</div>}
+                        {locked&&<div style={{fontSize:9,color:"#ff4444"}}>🔒 GM LOCKED</div>}
+                        {!locked&&tooLow&&<div style={{fontSize:9,color:"#ff5533"}}>🔒 LEVEL {req} REQ</div>}
+                        {DUNGEON_DATA[name]&&<div style={{fontSize:9,color:"#e8aa4488",marginTop:2}}>🏰 Dungeon available</div>}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* INVENTORY VIEW */}
+            {gameView==="inventory"&&me&&(
+              <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+                <div style={{display:"flex",borderBottom:"1px solid #2a1e0a",flexShrink:0}}>
+                  {[["equip","Equipment"],["items","Inventory"],["skills","Skills"],["craft","Craft"],["upgrade","Upgrade"]].map(([v,label])=>(
+                    <Btn key={v} onClick={()=>setInvTab(v)} style={{flex:1,background:invTab===v?"rgba(232,170,68,0.1)":"none",border:"none",borderRight:"1px solid #2a1e0a",borderBottom:invTab===v?"2px solid #e8aa44":"2px solid transparent",color:invTab===v?"#e8aa44":"#5a4030",padding:"8px 4px",fontSize:10,letterSpacing:1,fontFamily:"monospace"}}>{label}</Btn>
+                  ))}
+                </div>
+                <div style={{flex:1,padding:12,overflowY:"auto"}}>
+                  {invTab==="equip"&&(
+                    <div>
+                      <div style={{fontSize:10,color:"#5a4030",letterSpacing:2,marginBottom:10}}>STATS</div>
+                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:14}}>
+                        {[["⚔️ ATK",me.atk],["✨ MAG",me.mag],["💧 Mana",me.mana+"/"+me.maxMana],["💨 SPD",me.spd],["❤️ MaxHP",me.maxHp],["💰 Gold",me.gold.toLocaleString()]].map(([k,v])=>(
+                          <div key={k} style={{background:"rgba(0,0,0,0.3)",border:"1px solid #2a1e0a",borderRadius:3,padding:"8px 10px",display:"flex",justifyContent:"space-between"}}>
+                            <span style={{fontSize:11,color:"#7a6050"}}>{k}</span>
+                            <span style={{fontSize:11,color:"#e8aa44",fontWeight:"bold"}}>{v}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{fontSize:10,color:"#5a4030",letterSpacing:2,marginBottom:8}}>EQUIPPED</div>
+                      {(me.equipped||[]).length===0&&<div style={{fontSize:11,color:"#3a2a1a",padding:"10px 0"}}>Nothing equipped.</div>}
+                      {(me.equipped||[]).map(item=>(
+                        <div key={item} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 10px",background:"rgba(0,0,0,0.3)",border:"1px solid #2a2a1a",borderRadius:3,marginBottom:6}}>
+                          <span style={{fontSize:12}}>{ITEMS[item]?.icon} {item}</span>
+                          <span style={{fontSize:11,color:"#e8aa44"}}>{ITEMS[item]?.desc}</span>
+                          <Btn onClick={()=>unequipItem(item)} style={{background:"none",border:"1px solid #5a4030",color:"#7a6050",padding:"3px 6px",borderRadius:2,fontSize:10}}>Unequip</Btn>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {invTab==="items"&&(
+                    <div>
+                      <div style={{fontSize:10,color:"#5a4030",letterSpacing:2,marginBottom:10}}>INVENTORY ({me.inventory.length} items)</div>
+                      {me.inventory.length===0&&<div style={{fontSize:11,color:"#3a2a1a"}}>Empty.</div>}
+                      {Object.entries(me.inventory.reduce((acc,i)=>{acc[i]=(acc[i]||0)+1;return acc;},{})).map(([item,count])=>{
+                        const data=ITEMS[item]||{};
+                        return(
+                          <div key={item} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 10px",background:"rgba(0,0,0,0.3)",border:"1px solid #2a1e0a",borderRadius:3,marginBottom:6}}>
+                            <div style={{flex:1}}><div style={{fontSize:12}}>{data.icon||"📦"} {item} {count>1&&<span style={{color:"#5a4030",fontSize:10}}>×{count}</span>}</div><div style={{fontSize:10,color:"#5a4030",marginTop:2}}>{data.desc||""}</div></div>
+                            <div style={{display:"flex",gap:5}}>
+                              {data.type==="weapon"||data.type==="armor"?<Btn onClick={()=>(me.equipped||[]).includes(item)?unequipItem(item):equipItem(item)} style={{background:"rgba(232,170,68,0.08)",border:"1px solid #e8aa44",color:"#e8aa44",padding:"3px 8px",borderRadius:2,fontSize:10}}>{(me.equipped||[]).includes(item)?"Unequip":"Equip"}</Btn>:null}
+                              {data.type==="consumable"?<Btn onClick={()=>useItem(item)} style={{background:"rgba(85,204,102,0.08)",border:"1px solid #55cc66",color:"#55cc66",padding:"3px 8px",borderRadius:2,fontSize:10}}>Use</Btn>:null}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {invTab==="skills"&&(
+                    <div>
+                      <div style={{fontSize:10,color:"#5a4030",letterSpacing:2,marginBottom:4}}>SKILL POINTS: <span style={{color:"#aa88ff"}}>{skillPoints}</span></div>
+                      <div style={{fontSize:10,color:"#4a3028",marginBottom:12}}>Class-gated skills are highlighted. Gray = not available for {me.cls}.</div>
+                      {Object.entries(SKILL_TREE).map(([name,skill])=>{
+                        const rank=learnedSkills[name]||0;const classLocked=skill.classes&&!skill.classes.includes(me.cls);
+                        return(
+                          <div key={name} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 12px",background:"rgba(0,0,0,0.3)",border:"1px solid "+(classLocked?"#2a2020":"#2a1e0a"),borderRadius:4,marginBottom:6,opacity:classLocked?0.45:1}}>
+                            <div style={{flex:1}}>
+                              <div style={{fontSize:12,color:classLocked?"#5a4040":"#d4b896"}}>{skill.icon} {name} {rank>0&&<span style={{color:"#aa88ff"}}>R{rank}/{skill.maxRank}</span>}</div>
+                              <div style={{fontSize:10,color:"#5a4030",marginTop:2}}>{skill.desc}</div>
+                              {classLocked&&<div style={{fontSize:9,color:"#7a3030",marginTop:2}}>🔒 {skill.classes?.join("/")} only</div>}
+                              {!classLocked&&skill.classes&&<div style={{fontSize:9,color:"#5a6030",marginTop:2}}>For: {skill.classes.join(", ")}</div>}
+                            </div>
+                            <Btn onClick={()=>learnSkill(name)} disabled={classLocked||rank>=skill.maxRank||skillPoints<skill.cost} style={{background:"rgba(170,68,255,0.1)",border:"1px solid "+(classLocked||rank>=skill.maxRank||skillPoints<skill.cost?"#3a2050":"#aa44ff"),color:classLocked||rank>=skill.maxRank||skillPoints<skill.cost?"#4a3060":"#aa44ff",padding:"4px 10px",borderRadius:3,fontSize:11,minWidth:60,textAlign:"center"}}>{rank>=skill.maxRank?"MAX":classLocked?"🔒":"Learn ("+skill.cost+"SP)"}</Btn>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {invTab==="craft"&&(
+                    <div>
+                      <div style={{fontSize:10,color:"#5a4030",letterSpacing:2,marginBottom:12}}>CRAFTING</div>
+                      {CRAFT_RECIPES.map(recipe=>{
+                        const canCraft=recipe.requires.every(r=>me.inventory.includes(r));
+                        return(
+                          <div key={recipe.name} style={{padding:"10px 12px",background:"rgba(0,0,0,0.3)",border:"1px solid "+(canCraft?"#44ffcc33":"#2a1e0a"),borderRadius:4,marginBottom:8}}>
+                            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                              <div style={{fontSize:12,color:canCraft?"#44ffcc":"#7a6050"}}>{recipe.icon} {recipe.name}</div>
+                              <Btn onClick={()=>craftItem(recipe)} disabled={!canCraft} style={{background:canCraft?"rgba(68,255,204,0.08)":"rgba(0,0,0,0.2)",border:"1px solid "+(canCraft?"#44ffcc":"#2a1e0a"),color:canCraft?"#44ffcc":"#5a4030",padding:"3px 10px",borderRadius:3,fontSize:11}}>Craft</Btn>
+                            </div>
+                            <div style={{fontSize:10,color:"#5a4030"}}>Needs: {recipe.requires.map(r=><span key={r} style={{color:me.inventory.includes(r)?"#55cc66":"#ff5533",marginRight:6}}>{"● "+r}</span>)}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {invTab==="upgrade"&&(
+                    <div>
+                      <div style={{fontSize:10,color:"#5a4030",letterSpacing:2,marginBottom:4}}>EQUIPMENT UPGRADE</div>
+                      <div style={{fontSize:10,color:"#4a3028",marginBottom:12}}>Upgrade Stones: T1→T2. Dragon Cores: T2→T3.</div>
+                      {Object.entries(UPGRADE_PATHS).filter(([itemName])=>me.inventory.includes(itemName)).map(([itemName,path])=>{
+                        const hasReq=me.inventory.includes(path.req);const hasGold=me.gold>=path.cost;const can=hasReq&&hasGold;
+                        return(
+                          <div key={itemName} style={{padding:"10px 12px",background:"rgba(0,0,0,0.3)",border:"1px solid "+(can?"#44ffcc33":"#2a1e0a"),borderRadius:4,marginBottom:8}}>
+                            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                              <div style={{fontSize:12,color:can?"#44ffcc":"#7a6050"}}>{ITEMS[itemName]?.icon} {itemName} → {ITEMS[path.to]?.icon} {path.to}</div>
+                              <Btn onClick={()=>upgradeItem(itemName)} disabled={!can} style={{background:can?"rgba(68,255,204,0.08)":"rgba(0,0,0,0.2)",border:"1px solid "+(can?"#44ffcc":"#2a1e0a"),color:can?"#44ffcc":"#5a4030",padding:"3px 10px",borderRadius:3,fontSize:11}}>Upgrade</Btn>
+                            </div>
+                            <div style={{fontSize:10,color:"#5a4030"}}>Cost: <span style={{color:hasGold?"#ffd700":"#ff5533"}}>{path.cost}g</span> + <span style={{color:hasReq?"#55cc66":"#ff5533"}}>{path.req}</span></div>
+                            <div style={{fontSize:10,color:"#44ffcc88",marginTop:4}}>{ITEMS[path.to]?.desc}</div>
+                          </div>
+                        );
+                      })}
+                      {!Object.keys(UPGRADE_PATHS).some(k=>me.inventory.includes(k))&&<div style={{fontSize:11,color:"#3a2a1a"}}>No upgradeable items in inventory.</div>}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* QUESTS VIEW */}
+            {gameView==="quests"&&(
+              <div style={{flex:1,padding:12,overflowY:"auto"}}>
+                <div style={{fontSize:10,color:"#5a4030",letterSpacing:2,marginBottom:12}}>QUESTS & OBJECTIVES</div>
+                {quests.map(q=>(
+                  <div key={q.id} style={{padding:"10px 12px",background:"rgba(0,0,0,0.3)",border:"1px solid "+(q.done?"#55cc6633":"#2a1e0a"),borderRadius:4,marginBottom:8,opacity:q.done?0.6:1}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                      <div style={{fontSize:12,color:q.done?"#55cc66":"#d4b896",fontWeight:q.done?"normal":"bold"}}>{q.done?"✅ ":""}{q.name}</div>
+                      <div style={{fontSize:10,color:"#ffd700"}}>+{q.reward}g</div>
+                    </div>
+                    <div style={{fontSize:10,color:"#5a4030",marginBottom:q.progress!==undefined&&!q.done?6:0}}>{q.desc}</div>
+                    {q.progress!==undefined&&!q.done&&(
+                      <><div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"#aa8800",marginBottom:3}}><span>Progress</span><span>{q.progress||0}/{q.goal}</span></div><Bar val={q.progress||0} max={q.goal} color="#e8aa44" h={4}/></>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* SHOP VIEW */}
+            {gameView==="shop"&&(
+              <div style={{flex:1,padding:12,overflowY:"auto"}}>
+                <div style={{marginBottom:14}}>
+                  <div style={{fontSize:13,color:"#e8aa44",marginBottom:2}}>{REGION_SHOPS[region]?.merchant||"Merchant"}</div>
+                  <div style={{fontSize:11,color:"#7a6050",marginBottom:12,fontStyle:"italic"}}>{REGION_SHOPS[region]?.flavor}</div>
+                  <div style={{fontSize:10,color:"#5a4030",letterSpacing:2,marginBottom:8}}>BUY</div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+                    {getShopBuyList().map(item=>{
+                      const price=SHOP_PRICES[item]?.buy||100;const data=ITEMS[item]||{};const isGMItem=gmShopMods.some(m=>m.item===item&&(m.shop==="all"||m.shop===region)&&(m.permanent||Date.now()<m.expiresAt));
+                      return(
+                        <div key={item} style={{background:"rgba(0,0,0,0.3)",border:"1px solid "+(isGMItem?"#44aaff44":"#2a1e0a"),borderRadius:3,padding:"8px 10px"}}>
+                          <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+                            <span style={{fontSize:11}}>{data.icon||"📦"} {item}</span>
+                            {isGMItem&&<span style={{fontSize:8,color:"#44aaff",border:"1px solid #44aaff44",padding:"0 3px",borderRadius:1}}>GM</span>}
+                          </div>
+                          <div style={{fontSize:9,color:"#5a4030",marginBottom:6}}>{data.desc}</div>
+                          <Btn onClick={()=>shopBuy(item)} disabled={!me||me.gold<price} style={{width:"100%",background:"rgba(232,170,68,0.08)",border:"1px solid "+(me&&me.gold>=price?"#e8aa44":"#2a1e0a"),color:me&&me.gold>=price?"#e8aa44":"#5a4030",padding:"4px",borderRadius:2,fontSize:10}}>{price}g Buy</Btn>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div>
+                  <div style={{fontSize:10,color:"#5a4030",letterSpacing:2,marginBottom:8}}>SELL</div>
+                  {me&&Object.entries(me.inventory.reduce((acc,i)=>{acc[i]=(acc[i]||0)+1;return acc;},{})).filter(([item])=>SHOP_PRICES[item]?.sell).map(([item,count])=>(
+                    <div key={item} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 10px",background:"rgba(0,0,0,0.3)",border:"1px solid #2a1e0a",borderRadius:3,marginBottom:5}}>
+                      <span style={{fontSize:12}}>{ITEMS[item]?.icon} {item} {count>1&&<span style={{color:"#5a4030",fontSize:10}}>×{count}</span>}</span>
+                      <Btn onClick={()=>shopSell(item)} style={{background:"rgba(85,204,102,0.08)",border:"1px solid #55cc66",color:"#55cc66",padding:"3px 8px",borderRadius:2,fontSize:10}}>+{SHOP_PRICES[item]?.sell}g</Btn>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ACHIEVEMENTS */}
+            {gameView==="achieve"&&(
+              <div style={{flex:1,padding:12,overflowY:"auto"}}>
+                <div style={{fontSize:10,color:"#5a4030",letterSpacing:2,marginBottom:4}}>ACHIEVEMENTS</div>
+                <div style={{fontSize:10,color:"#3a2a1a",marginBottom:12}}>{achievements.length}/{ACHIEVEMENTS_DEF.length} unlocked</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+                  {ACHIEVEMENTS_DEF.map(ach=>{const unlocked=achievements.includes(ach.id);return(
+                    <div key={ach.id} style={{background:"rgba(0,0,0,0.3)",border:"1px solid "+(unlocked?"#e8aa4444":"#1a1208"),borderRadius:4,padding:"10px 12px",opacity:unlocked?1:0.4}}>
+                      <div style={{fontSize:22,marginBottom:4}}>{ach.icon}</div>
+                      <div style={{fontSize:11,color:unlocked?"#e8aa44":"#5a4030",fontWeight:unlocked?"bold":"normal"}}>{ach.name}</div>
+                      <div style={{fontSize:9,color:"#5a4030",marginTop:2}}>{ach.desc}</div>
+                      {unlocked&&<div style={{fontSize:9,color:"#55cc66",marginTop:3}}>✅ Unlocked</div>}
+                    </div>
+                  );})}
+                </div>
+              </div>
+            )}
+
+            {/* Game Log */}
+            <div ref={gameLogRef} style={{height:120,overflowY:"auto",borderTop:"1px solid #2a1e0a",padding:"8px 12px",background:"rgba(0,0,0,0.4)",flexShrink:0}}>
+              {gameLog.map((entry,i)=>{
+                const colors={system:"#55cc66",gold:"#ffd700",combat:"#e8aa44",warn:"#ff8844",story:"#9a8070",npc:"#7a90a0",xp:"#aa88ff",info:"#7a6050"};
+                return<div key={i} style={{fontSize:10,color:colors[entry.type]||"#7a6050",padding:"1px 0",lineHeight:1.4}}><span style={{color:"#3a2a1a",marginRight:6}}>{entry.t}</span>{entry.msg}</div>;
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* GM PANEL */}
+        {isGM&&gmOpen&&(
+          <div className="gm-side" style={{width:340,background:"#07090d",display:"flex",flexDirection:"column",borderLeft:"1px solid #1a2535",overflowY:"auto",flexShrink:0}}>
+            {/* GM header */}
+            <div style={{background:"#0d1117",borderBottom:"1px solid #1a2535",padding:"12px 14px",flexShrink:0}}>
+              <div style={{fontSize:11,color:"#3dd68c",letterSpacing:3,fontFamily:"monospace",fontWeight:"bold"}}>◈ GM CONSOLE</div>
+              {me&&(
+                <div style={{marginTop:8,padding:"8px 10px",background:"rgba(61,214,140,0.05)",border:"1px solid #1a3025",borderRadius:4}}>
+                  <div style={{fontSize:10,color:"#3dd68c",marginBottom:4}}>{me.name} · Lv.{me.level} {me.cls} · {region}</div>
+                  <div style={{fontSize:10,color:"#5a8060",marginBottom:3}}>HP {me.hp}/{me.maxHp}</div>
+                  <GBar val={me.hp} max={me.maxHp} color={me.hp<me.maxHp*0.25?"#ff4444":me.hp<me.maxHp*0.5?"#ffaa00":"#3dd68c"}/>
+                  <div style={{fontSize:10,color:"#5a8060",marginTop:5,marginBottom:3}}>Mana {me.mana}/{me.maxMana}</div>
+                  <GBar val={me.mana} max={me.maxMana} color="#44aaff"/>
+                  <div style={{fontSize:10,color:"#5a7060",marginTop:5}}>Gold: <span style={{color:"#ffd700"}}>{me.gold.toLocaleString()}g</span> · Kills: {me.kills}</div>
+                </div>
+              )}
+            </div>
+            {/* GM tabs */}
+            <div style={{display:"flex",borderBottom:"1px solid #1a2535",flexShrink:0}}>
+              {[["world","World"],["spawn","Spawn"],["player","Player"],["comms","Comms"],["bounty","Bounty"],["create","Create"]].map(([v,label])=>(
+                <Btn key={v} onClick={()=>setGmTab(v)} style={{flex:1,background:gmTab===v?"rgba(61,214,140,0.1)":"none",border:"none",borderBottom:gmTab===v?"2px solid #3dd68c":"2px solid transparent",color:gmTab===v?"#3dd68c":"#3a5068",padding:"7px 2px",fontSize:9,letterSpacing:1,fontFamily:"monospace"}}>{label}</Btn>
+              ))}
+            </div>
+            <div style={{flex:1,padding:12,overflowY:"auto",fontSize:11,color:"#b8cfe0"}}>
+
+              {/* WORLD TAB */}
+              {gmTab==="world"&&(
+                <div>
+                  <div style={{fontSize:9,color:"#3a5068",letterSpacing:2,marginBottom:8}}>WORLD EVENTS</div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:14}}>
+                    {WORLD_EVENTS.map(ev=>{const active=activeEvents.includes(ev.id);return(
+                      <div key={ev.id} style={{background:active?"rgba(61,214,140,0.08)":"rgba(0,0,0,0.3)",border:"1px solid "+(active?ev.color+"55":"#1a2535"),borderRadius:3,padding:"8px 10px"}}>
+                        <div style={{fontSize:11,color:active?ev.color:"#7a8090",marginBottom:2}}>{ev.icon} {ev.name}</div>
+                        <div style={{fontSize:9,color:"#3a5068",marginBottom:6}}>{active?"Active: "+eventTimers[ev.id]+"s":ev.duration+"s"}</div>
+                        <Btn onClick={()=>active?gmStopEvent(ev.id):gmTriggerEvent(ev)} style={{width:"100%",background:active?"rgba(255,68,68,0.08)":"rgba(61,214,140,0.05)",border:"1px solid "+(active?"#ff4444":"#1a3525"),color:active?"#ff4444":"#3dd68c",padding:"3px",borderRadius:2,fontSize:10,fontFamily:"monospace"}}>{active?"STOP":"START"}</Btn>
+                      </div>
+                    );})}
+                  </div>
+                  <div style={{fontSize:9,color:"#3a5068",letterSpacing:2,marginBottom:8}}>WEATHER {weatherLocked&&<span style={{color:"#ffaa00"}}>🔒LOCKED</span>}</div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:5,marginBottom:10}}>
+                    {Object.keys(WEATHER_EFFECTS).map(w=>(
+                      <Btn key={w} onClick={()=>{if(!weatherLocked){setWeather(w);gmLog("Weather: "+w,"system");}}} style={{background:weather===w?"rgba(61,214,140,0.15)":"rgba(0,0,0,0.3)",border:"1px solid "+(weather===w?"#3dd68c":"#1a2535"),color:weather===w?"#3dd68c":"#3a5068",padding:"5px 3px",borderRadius:3,fontSize:10,fontFamily:"monospace"}}>{w}</Btn>
+                    ))}
+                  </div>
+                  <Btn onClick={()=>setWeatherLocked(v=>!v)} style={{width:"100%",background:weatherLocked?"rgba(255,170,0,0.08)":"rgba(0,0,0,0.2)",border:"1px solid "+(weatherLocked?"#ffaa00":"#1a2535"),color:weatherLocked?"#ffaa00":"#3a5068",padding:"5px",borderRadius:3,fontSize:10,marginBottom:14,fontFamily:"monospace"}}>{weatherLocked?"🔒 UNLOCK WEATHER":"🔓 LOCK WEATHER"}</Btn>
+                  <div style={{fontSize:9,color:"#3a5068",letterSpacing:2,marginBottom:8}}>REGION LOCKDOWN</div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5,marginBottom:14}}>
+                    {Object.keys(REGIONS).map(r=>{const locked=lockedRegions.includes(r);return(
+                      <Btn key={r} onClick={()=>setLockedRegions(prev=>locked?prev.filter(x=>x!==r):[...prev,r])} style={{background:locked?"rgba(255,68,68,0.08)":"rgba(0,0,0,0.2)",border:"1px solid "+(locked?"#ff4444":"#1a2535"),color:locked?"#ff4444":"#3a5068",padding:"5px 4px",borderRadius:3,fontSize:9,fontFamily:"monospace"}}>{locked?"🔒 ":""}{r.length>12?r.slice(0,10)+"..":r}</Btn>
+                    );})}
+                  </div>
+                  <div style={{fontSize:9,color:"#3a5068",letterSpacing:2,marginBottom:8}}>MULTIPLIERS</div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6,marginBottom:8}}>
+                    {[1,2,3].map(m=><Btn key={m} onClick={()=>setXpMult(m)} style={{background:xpMult===m?"rgba(170,68,255,0.15)":"rgba(0,0,0,0.2)",border:"1px solid "+(xpMult===m?"#aa44ff":"#1a2535"),color:xpMult===m?"#aa44ff":"#3a5068",padding:"5px",borderRadius:3,fontSize:10,fontFamily:"monospace"}}>XP ×{m}</Btn>)}
+                    {[1,2,5].map(m=><Btn key={m} onClick={()=>setGoldMult(m)} style={{background:goldMult===m?"rgba(255,215,0,0.1)":"rgba(0,0,0,0.2)",border:"1px solid "+(goldMult===m?"#ffd700":"#1a2535"),color:goldMult===m?"#ffd700":"#3a5068",padding:"5px",borderRadius:3,fontSize:10,fontFamily:"monospace"}}>G ×{m}</Btn>)}
+                  </div>
+                  <div style={{fontSize:9,color:"#3a5068",marginBottom:4}}>Spawn Rate: {spawnRate}%</div>
+                  <input type="range" min={0} max={100} value={spawnRate} onChange={e=>setSpawnRate(+e.target.value)} style={{width:"100%",accentColor:"#3dd68c",marginBottom:8}}/>
+                  <div style={{display:"flex",gap:6}}>
+                    <Btn onClick={()=>setPvpEnabled(v=>!v)} style={{flex:1,background:pvpEnabled?"rgba(255,34,68,0.1)":"rgba(0,0,0,0.2)",border:"1px solid "+(pvpEnabled?"#ff2244":"#1a2535"),color:pvpEnabled?"#ff2244":"#3a5068",padding:"6px",borderRadius:3,fontSize:10,fontFamily:"monospace"}}>PvP {pvpEnabled?"ON":"OFF"}</Btn>
+                  </div>
+                </div>
+              )}
+
+              {/* SPAWN TAB */}
+              {gmTab==="spawn"&&(
+                <div>
+                  <div style={{fontSize:9,color:"#3a5068",letterSpacing:2,marginBottom:8}}>MOB SPAWNER {gameView==="combat"&&<span style={{color:"#ff4444"}}>— IN COMBAT</span>}</div>
+                  <div style={{display:"flex",flexDirection:"column",gap:5}}>
+                    {Object.entries(MOB_TEMPLATES).map(([name,mob])=>(
+                      <div key={name} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 10px",background:mob.boss?"rgba(255,68,50,0.06)":"rgba(0,0,0,0.3)",border:"1px solid "+(mob.boss?"#ff4433aa":"#1a2535"),borderRadius:3}}>
+                        <span style={{fontSize:18,minWidth:24}}>{mob.icon}</span>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontSize:11,color:mob.boss?"#ff5544":"#b8cfe0"}}>{mob.boss?"⚠️ ":""}{name}</div>
+                          <div style={{fontSize:9,color:"#3a5068"}}>HP {mob.hp} · ATK {mob.atk} · {mob.xp}xp</div>
+                        </div>
+                        <Btn onClick={()=>{if(gameView==="combat"){notify("In combat!","#ff4444");return;}const t=MOB_TEMPLATES[name];setEncounter({enemies:[{...t,name,maxHp:t.hp}]});setGameView("combat");setCombatTurn("player");setSelectedTargetIdx(0);gLog("GM spawned "+name+"!","system");notify("SPAWNED: "+name,"#ff4444");}} style={{background:"rgba(255,68,50,0.08)",border:"1px solid #ff4433",color:"#ff5544",padding:"3px 8px",borderRadius:2,fontSize:10,fontFamily:"monospace",flexShrink:0}}>Spawn</Btn>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* PLAYER TAB */}
+              {gmTab==="player"&&(
+                <div>
+                  <div style={{fontSize:9,color:"#3a5068",letterSpacing:2,marginBottom:8}}>STAT EDITOR</div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:8}}>
+                    {[["atk","ATK",me?.atk],["mag","MAG",me?.mag],["hp","MAX HP",me?.maxHp],["mana","MAX MANA",me?.maxMana],["level","LEVEL",me?.level],["gold","GOLD",me?.gold]].map(([key,label,cur])=>(
+                      <div key={key}><div style={{fontSize:9,color:"#3a5068",marginBottom:3}}>{label} (now: {cur})</div><input type="number" value={gmStatEdit[key]} onChange={e=>setGmStatEdit(p=>({...p,[key]:e.target.value}))} placeholder={String(cur||0)} style={{...inp(),width:"100%",boxSizing:"border-box"}}/></div>
+                    ))}
+                  </div>
+                  <Btn onClick={gmApplyStats} style={{width:"100%",background:"rgba(61,214,140,0.08)",border:"1px solid #3dd68c",color:"#3dd68c",padding:"7px",borderRadius:3,fontSize:10,fontFamily:"monospace",marginBottom:14}}>APPLY STAT CHANGES</Btn>
+                  <div style={{fontSize:9,color:"#3a5068",letterSpacing:2,marginBottom:8}}>QUICK ACTIONS</div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:14}}>
+                    <Btn onClick={()=>{setMe(p=>p?{...p,hp:p.maxHp,mana:p.maxMana}:p);setPoisoned(false);notify("Healed!","#55cc66");}} style={{background:"rgba(85,204,102,0.08)",border:"1px solid #3a5a3a",color:"#55cc66",padding:"7px",borderRadius:3,fontSize:10,fontFamily:"monospace"}}>Full Heal</Btn>
+                    <Btn onClick={()=>{setMe(p=>p?{...p,atk:p.atk+30,mag:p.mag+30,maxHp:p.maxHp+200,hp:p.maxHp+200}:p);notify("God Buff!","#44ffcc");}} style={{background:"rgba(68,255,204,0.05)",border:"1px solid #1a4535",color:"#44ffcc",padding:"7px",borderRadius:3,fontSize:10,fontFamily:"monospace"}}>God Buff</Btn>
+                    {[100,500,1000,5000].map(amt=><Btn key={amt} onClick={()=>{setMe(p=>p?{...p,gold:p.gold+amt}:p);notify("+"+amt+"g","#ffd700");gLog("GM gave "+amt+"g","system");}} style={{background:"rgba(255,215,0,0.06)",border:"1px solid #2a3010",color:"#ffd700",padding:"7px",borderRadius:3,fontSize:10,fontFamily:"monospace"}}>+{amt}g</Btn>)}
+                    <Btn onClick={()=>{setSkillPoints(sp=>sp+1);notify("+1 SP","#aa88ff");}} style={{background:"rgba(170,68,255,0.08)",border:"1px solid #2a1a4a",color:"#aa88ff",padding:"7px",borderRadius:3,fontSize:10,fontFamily:"monospace"}}>+1 SP</Btn>
+                    <Btn onClick={()=>setMe(p=>p?{...p,inventory:[...p.inventory,"Dragon Core"]}:p)} style={{background:"rgba(68,170,255,0.06)",border:"1px solid #1a2a40",color:"#44aaff",padding:"7px",borderRadius:3,fontSize:10,fontFamily:"monospace"}}>Give Dragon Core</Btn>
+                  </div>
+                  <div style={{fontSize:9,color:"#3a5068",letterSpacing:2,marginBottom:8}}>GIVE ITEM</div>
+                  <div style={{display:"flex",gap:6,marginBottom:8}}>
+                    <select id="gm-item-sel" style={{...inp(),flex:1}}>{Object.keys(ITEMS).map(i=><option key={i}>{i}</option>)}</select>
+                    <Btn onClick={()=>{const s=document.getElementById("gm-item-sel");if(s){setMe(p=>p?{...p,inventory:[...p.inventory,s.value]}:p);notify("Gave: "+s.value,"#44aaff");gLog("GM gave "+s.value,"system");}}} style={{background:"rgba(68,170,255,0.08)",border:"1px solid #1a2a40",color:"#44aaff",padding:"5px 10px",borderRadius:3,fontSize:10,fontFamily:"monospace"}}>Give</Btn>
+                  </div>
+                  <div style={{fontSize:9,color:"#3a5068",letterSpacing:2,marginBottom:8}}>TELEPORT</div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5}}>
+                    {Object.keys(REGIONS).map(r=><Btn key={r} onClick={()=>travelTo(r)} style={{background:"rgba(61,214,140,0.05)",border:"1px solid #1a2535",color:"#3dd68c",padding:"5px 3px",borderRadius:3,fontSize:9,fontFamily:"monospace"}}>{r.length>14?r.slice(0,12)+"..":r}</Btn>)}
+                  </div>
+                </div>
+              )}
+
+              {/* COMMS TAB */}
+              {gmTab==="comms"&&(
+                <div>
+                  <div style={{fontSize:9,color:"#3a5068",letterSpacing:2,marginBottom:8}}>GLOBAL ANNOUNCEMENT</div>
+                  <input value={gmAnnounceForm.text} onChange={e=>setGmAnnounceForm(p=>({...p,text:e.target.value}))} placeholder="Announcement text..." style={{...inp(),width:"100%",boxSizing:"border-box",marginBottom:6}}/>
+                  <div style={{display:"flex",gap:6,marginBottom:8}}>
+                    <div style={{flex:1}}><div style={{fontSize:9,color:"#3a5068",marginBottom:3}}>Icon</div><input value={gmAnnounceForm.icon} onChange={e=>setGmAnnounceForm(p=>({...p,icon:e.target.value}))} style={{...inp(),width:"100%",boxSizing:"border-box"}}/></div>
+                    <div style={{flex:1}}><div style={{fontSize:9,color:"#3a5068",marginBottom:3}}>Color</div><input type="color" value={gmAnnounceForm.color} onChange={e=>setGmAnnounceForm(p=>({...p,color:e.target.value}))} style={{width:"100%",height:30,borderRadius:3,border:"1px solid #1a2535",background:"#0a0c10"}}/></div>
+                  </div>
+                  <Btn onClick={gmSendAnnounce} style={{width:"100%",background:"rgba(61,214,140,0.08)",border:"1px solid #3dd68c",color:"#3dd68c",padding:"7px",borderRadius:3,fontSize:10,fontFamily:"monospace",marginBottom:16}}>📢 SEND ANNOUNCEMENT</Btn>
+                  <div style={{fontSize:9,color:"#3a5068",letterSpacing:2,marginBottom:8}}>WHISPER TO PLAYER</div>
+                  <input value={gmWhisperForm.text} onChange={e=>setGmWhisperForm(p=>({...p,text:e.target.value}))} placeholder="Whisper message..." style={{...inp(),width:"100%",boxSizing:"border-box",marginBottom:6}}/>
+                  <div style={{display:"flex",gap:6,marginBottom:8}}>
+                    <div style={{flex:1}}><div style={{fontSize:9,color:"#3a5068",marginBottom:3}}>Color</div><input type="color" value={gmWhisperForm.color} onChange={e=>setGmWhisperForm(p=>({...p,color:e.target.value}))} style={{width:"100%",height:28,borderRadius:3,border:"1px solid #1a2535",background:"#0a0c10"}}/></div>
+                  </div>
+                  <Btn onClick={gmSendWhisper} style={{width:"100%",background:"rgba(170,68,255,0.08)",border:"1px solid #aa44ff",color:"#aa44ff",padding:"7px",borderRadius:3,fontSize:10,fontFamily:"monospace",marginBottom:16}}>📨 SEND WHISPER</Btn>
+                  <div style={{fontSize:9,color:"#3a5068",letterSpacing:2,marginBottom:8}}>NPC PUPPET</div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5,marginBottom:8}}>
+                    {npcPlayers.filter(n=>n.status==="online").slice(0,8).map(n=>(
+                      <div key={n.id} style={{background:"rgba(0,0,0,0.3)",border:"1px solid #1a2535",borderRadius:3,padding:"6px 8px"}}>
+                        <div style={{fontSize:10,color:"#b8cfe0",marginBottom:5}}>{n.name}</div>
+                        <div style={{display:"flex",gap:4}}>
+                          <Btn onClick={()=>{setGmPuppet({npcId:n.id,mode:"escort"});notify(n.name+" escorts you!","#3dd68c");gLog("GM puppet escort: "+n.name,"system");}} style={{flex:1,background:"rgba(61,214,140,0.06)",border:"1px solid #1a3525",color:"#3dd68c",padding:"3px 2px",borderRadius:2,fontSize:9,fontFamily:"monospace"}}>Escort</Btn>
+                          <Btn onClick={()=>setGmPuppet({npcId:n.id,mode:"ambush"})} style={{flex:1,background:"rgba(255,68,50,0.06)",border:"1px solid #3a1010",color:"#ff5544",padding:"3px 2px",borderRadius:2,fontSize:9,fontFamily:"monospace"}}>Ambush</Btn>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {gmPuppet&&<div style={{fontSize:10,color:"#ffaa00",padding:"6px 8px",border:"1px solid #aa8800",borderRadius:3,marginBottom:8}}>Puppet active: {npcPlayers.find(n=>n.id===gmPuppet.npcId)?.name} ({gmPuppet.mode})<Btn onClick={()=>setGmPuppet(null)} style={{marginLeft:8,background:"none",border:"1px solid #aa8800",color:"#ffaa00",padding:"1px 5px",borderRadius:2,fontSize:9}}>Cancel</Btn></div>}
+                </div>
+              )}
+
+              {/* BOUNTY TAB */}
+              {gmTab==="bounty"&&(
+                <div>
+                  <div style={{fontSize:9,color:"#3a5068",letterSpacing:2,marginBottom:8}}>CREATE BOUNTY QUEST</div>
+                  <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:14}}>
+                    <div><div style={{fontSize:9,color:"#3a5068",marginBottom:3}}>Quest Name</div><input value={gmBountyForm.name} onChange={e=>setGmBountyForm(p=>({...p,name:e.target.value}))} placeholder="Bounty name..." style={{...inp(),width:"100%",boxSizing:"border-box"}}/></div>
+                    <div><div style={{fontSize:9,color:"#3a5068",marginBottom:3}}>Description</div><input value={gmBountyForm.desc} onChange={e=>setGmBountyForm(p=>({...p,desc:e.target.value}))} placeholder="What must they do?" style={{...inp(),width:"100%",boxSizing:"border-box"}}/></div>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+                      <div><div style={{fontSize:9,color:"#3a5068",marginBottom:3}}>Goal (count)</div><input type="number" value={gmBountyForm.goal} onChange={e=>setGmBountyForm(p=>({...p,goal:+e.target.value}))} style={{...inp(),width:"100%",boxSizing:"border-box"}}/></div>
+                      <div><div style={{fontSize:9,color:"#3a5068",marginBottom:3}}>Type</div><select value={gmBountyForm.type} onChange={e=>setGmBountyForm(p=>({...p,type:e.target.value}))} style={{...inp(),width:"100%",boxSizing:"border-box"}}><option value="kills">Kills</option></select></div>
+                    </div>
+                    <div><div style={{fontSize:9,color:"#3a5068",marginBottom:3}}>Reward Type</div>
+                      <div style={{display:"flex",gap:5}}>
+                        {["gold","item","sp"].map(rt=><Btn key={rt} onClick={()=>setGmBountyForm(p=>({...p,rewardType:rt}))} style={{flex:1,background:gmBountyForm.rewardType===rt?"rgba(255,215,0,0.1)":"rgba(0,0,0,0.2)",border:"1px solid "+(gmBountyForm.rewardType===rt?"#ffd700":"#1a2535"),color:gmBountyForm.rewardType===rt?"#ffd700":"#3a5068",padding:"5px",borderRadius:3,fontSize:10,fontFamily:"monospace"}}>{rt.toUpperCase()}</Btn>)}
+                      </div>
+                    </div>
+                    {gmBountyForm.rewardType==="gold"&&<div><div style={{fontSize:9,color:"#3a5068",marginBottom:3}}>Gold Amount</div><input type="number" value={gmBountyForm.rewardGold} onChange={e=>setGmBountyForm(p=>({...p,rewardGold:+e.target.value}))} style={{...inp(),width:"100%",boxSizing:"border-box"}}/></div>}
+                    {gmBountyForm.rewardType==="item"&&<div><div style={{fontSize:9,color:"#3a5068",marginBottom:3}}>Item</div><select value={gmBountyForm.rewardItem} onChange={e=>setGmBountyForm(p=>({...p,rewardItem:e.target.value}))} style={{...inp(),width:"100%",boxSizing:"border-box"}}>{Object.keys(ITEMS).map(i=><option key={i}>{i}</option>)}</select></div>}
+                    <Btn onClick={gmCreateBounty} style={{background:"rgba(255,215,0,0.08)",border:"1px solid #ffd700",color:"#ffd700",padding:"8px",borderRadius:3,fontSize:10,fontFamily:"monospace"}}>📋 CREATE BOUNTY</Btn>
+                  </div>
+                  {gmBounties.length>0&&(
+                    <div>
+                      <div style={{fontSize:9,color:"#3a5068",letterSpacing:2,marginBottom:8}}>ACTIVE BOUNTIES</div>
+                      {gmBounties.map(b=><div key={b.id} style={{background:"rgba(0,0,0,0.3)",border:"1px solid "+(b.done?"#ffd700":"#1a2535"),borderRadius:3,padding:"7px 10px",marginBottom:6,display:"flex",justifyContent:"space-between",alignItems:"center"}}><div><div style={{fontSize:11,color:b.done?"#ffd700":"#b8cfe0"}}>{b.done?"✅ ":""}{b.name}</div><div style={{fontSize:9,color:"#3a5068"}}>{b.progress||0}/{b.goal}</div></div><Btn onClick={()=>setGmBounties(prev=>prev.filter(x=>x.id!==b.id))} style={{background:"none",border:"1px solid #ff4444",color:"#ff4444",padding:"2px 6px",borderRadius:2,fontSize:9}}>✕</Btn></div>)}
+                    </div>
+                  )}
+                  <div style={{marginTop:14}}>
+                    <div style={{fontSize:9,color:"#3a5068",letterSpacing:2,marginBottom:8}}>SHOP MODS</div>
+                    <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:8}}>
+                      <div><div style={{fontSize:9,color:"#3a5068",marginBottom:3}}>Item</div><select value={gmShopForm.item} onChange={e=>setGmShopForm(p=>({...p,item:e.target.value}))} style={{...inp(),width:"100%",boxSizing:"border-box"}}>{Object.keys(ITEMS).map(i=><option key={i}>{i}</option>)}</select></div>
+                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+                        <div><div style={{fontSize:9,color:"#3a5068",marginBottom:3}}>Shop</div><select value={gmShopForm.shop} onChange={e=>setGmShopForm(p=>({...p,shop:e.target.value}))} style={{...inp(),width:"100%",boxSizing:"border-box"}}><option value="all">All Shops</option>{Object.keys(REGIONS).map(r=><option key={r}>{r}</option>)}</select></div>
+                        <div><div style={{fontSize:9,color:"#3a5068",marginBottom:3}}>Duration</div><select value={gmShopForm.duration} onChange={e=>setGmShopForm(p=>({...p,duration:e.target.value}))} style={{...inp(),width:"100%",boxSizing:"border-box"}}><option value="permanent">Permanent</option><option value="5min">5 min</option><option value="15min">15 min</option><option value="1hr">1 hour</option></select></div>
+                      </div>
+                      <Btn onClick={gmAddShopMod} style={{background:"rgba(255,215,0,0.06)",border:"1px solid #2a3010",color:"#ffd700",padding:"7px",borderRadius:3,fontSize:10,fontFamily:"monospace"}}>🛍️ ADD TO SHOP</Btn>
+                    </div>
+                    {gmShopMods.length>0&&gmShopMods.map(m=><div key={m.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"5px 8px",background:"rgba(0,0,0,0.3)",border:"1px solid #1a2535",borderRadius:3,marginBottom:4,fontSize:10}}><span style={{color:"#b8cfe0"}}>{m.item} → {m.shop==="all"?"All":m.shop}</span><Btn onClick={()=>setGmShopMods(prev=>prev.filter(x=>x.id!==m.id))} style={{background:"none",border:"1px solid #3a2020",color:"#ff4444",padding:"1px 5px",borderRadius:2,fontSize:9}}>✕</Btn></div>)}
+                  </div>
+                </div>
+              )}
+
+              {/* CREATE TAB */}
+              {gmTab==="create"&&(
+                <div>
+                  <div style={{fontSize:9,color:"#3a5068",letterSpacing:2,marginBottom:8}}>CREATE CUSTOM ITEM</div>
+                  <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:14}}>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+                      <div><div style={{fontSize:9,color:"#3a5068",marginBottom:3}}>Name</div><input value={gmCustomItemForm.name} onChange={e=>setGmCustomItemForm(p=>({...p,name:e.target.value}))} placeholder="Item name" style={{...inp(),width:"100%",boxSizing:"border-box"}}/></div>
+                      <div><div style={{fontSize:9,color:"#3a5068",marginBottom:3}}>Icon (emoji)</div><input value={gmCustomItemForm.icon} onChange={e=>setGmCustomItemForm(p=>({...p,icon:e.target.value}))} style={{...inp(),width:"100%",boxSizing:"border-box"}}/></div>
+                    </div>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+                      <div><div style={{fontSize:9,color:"#3a5068",marginBottom:3}}>Type</div><select value={gmCustomItemForm.type} onChange={e=>setGmCustomItemForm(p=>({...p,type:e.target.value}))} style={{...inp(),width:"100%",boxSizing:"border-box"}}><option value="weapon">Weapon</option><option value="armor">Armor</option><option value="consumable">Consumable</option></select></div>
+                      <div><div style={{fontSize:9,color:"#3a5068",marginBottom:3}}>Effect</div><select value={gmCustomItemForm.effect} onChange={e=>setGmCustomItemForm(p=>({...p,effect:e.target.value}))} style={{...inp(),width:"100%",boxSizing:"border-box"}}><option value="atk">+ATK</option><option value="mag">+MAG</option><option value="hp">+HP</option><option value="spd">+SPD</option><option value="heal">Heal</option><option value="mana">Mana</option></select></div>
+                    </div>
+                    <div><div style={{fontSize:9,color:"#3a5068",marginBottom:3}}>Value</div><input type="number" value={gmCustomItemForm.value} onChange={e=>setGmCustomItemForm(p=>({...p,value:+e.target.value}))} style={{...inp(),width:"100%",boxSizing:"border-box"}}/></div>
+                    <div><div style={{fontSize:9,color:"#3a5068",marginBottom:3}}>Description</div><input value={gmCustomItemForm.desc} onChange={e=>setGmCustomItemForm(p=>({...p,desc:e.target.value}))} placeholder="Item description" style={{...inp(),width:"100%",boxSizing:"border-box"}}/></div>
+                    <Btn onClick={gmCreateCustomItem} style={{background:"rgba(68,170,255,0.08)",border:"1px solid #44aaff",color:"#44aaff",padding:"8px",borderRadius:3,fontSize:10,fontFamily:"monospace"}}>⚔️ CREATE ITEM</Btn>
+                    <Btn onClick={()=>{if(!gmCustomItemForm.name)return;setMe(p=>p?{...p,inventory:[...p.inventory,gmCustomItemForm.name]}:p);notify("Given: "+gmCustomItemForm.name,"#44aaff");}} style={{background:"rgba(61,214,140,0.06)",border:"1px solid #1a3525",color:"#3dd68c",padding:"8px",borderRadius:3,fontSize:10,fontFamily:"monospace"}}>Give To Player</Btn>
+                  </div>
+                  <div style={{fontSize:9,color:"#3a5068",letterSpacing:2,marginBottom:8}}>CREATE CUSTOM EVENT</div>
+                  <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:14}}>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+                      <div><div style={{fontSize:9,color:"#3a5068",marginBottom:3}}>Event Name</div><input value={gmCustomEventForm.name} onChange={e=>setGmCustomEventForm(p=>({...p,name:e.target.value}))} placeholder="Event name" style={{...inp(),width:"100%",boxSizing:"border-box"}}/></div>
+                      <div><div style={{fontSize:9,color:"#3a5068",marginBottom:3}}>Icon</div><input value={gmCustomEventForm.icon} onChange={e=>setGmCustomEventForm(p=>({...p,icon:e.target.value}))} style={{...inp(),width:"100%",boxSizing:"border-box"}}/></div>
+                    </div>
+                    <div><div style={{fontSize:9,color:"#3a5068",marginBottom:3}}>Description</div><input value={gmCustomEventForm.desc} onChange={e=>setGmCustomEventForm(p=>({...p,desc:e.target.value}))} placeholder="Event description" style={{...inp(),width:"100%",boxSizing:"border-box"}}/></div>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6}}>
+                      <div><div style={{fontSize:9,color:"#3a5068",marginBottom:3}}>Duration (s)</div><input type="number" value={gmCustomEventForm.duration} onChange={e=>setGmCustomEventForm(p=>({...p,duration:+e.target.value}))} style={{...inp(),width:"100%",boxSizing:"border-box"}}/></div>
+                      <div><div style={{fontSize:9,color:"#3a5068",marginBottom:3}}>XP Mult</div><input type="number" value={gmCustomEventForm.xpMult} min={1} max={10} onChange={e=>setGmCustomEventForm(p=>({...p,xpMult:+e.target.value}))} style={{...inp(),width:"100%",boxSizing:"border-box"}}/></div>
+                      <div><div style={{fontSize:9,color:"#3a5068",marginBottom:3}}>Gold Mult</div><input type="number" value={gmCustomEventForm.goldMult} min={1} max={10} onChange={e=>setGmCustomEventForm(p=>({...p,goldMult:+e.target.value}))} style={{...inp(),width:"100%",boxSizing:"border-box"}}/></div>
+                    </div>
+                    <div><div style={{fontSize:9,color:"#3a5068",marginBottom:3}}>Color</div><input type="color" value={gmCustomEventForm.color} onChange={e=>setGmCustomEventForm(p=>({...p,color:e.target.value}))} style={{width:"100%",height:30,borderRadius:3,border:"1px solid #1a2535",background:"#0a0c10"}}/></div>
+                    <Btn onClick={gmCreateCustomEvent} style={{background:"rgba(61,214,140,0.08)",border:"1px solid #3dd68c",color:"#3dd68c",padding:"8px",borderRadius:3,fontSize:10,fontFamily:"monospace"}}>🌟 CREATE & LAUNCH EVENT</Btn>
+                  </div>
+                  {Object.keys(gmCustomItems).length>0&&(
+                    <div>
+                      <div style={{fontSize:9,color:"#3a5068",letterSpacing:2,marginBottom:8}}>CUSTOM ITEMS CREATED</div>
+                      {Object.entries(gmCustomItems).map(([name,item])=>(
+                        <div key={name} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 10px",background:"rgba(0,0,0,0.3)",border:"1px solid #1a2535",borderRadius:3,marginBottom:5}}>
+                          <span style={{fontSize:11,color:"#b8cfe0"}}>{item.icon} {name}</span>
+                          <Btn onClick={()=>setMe(p=>p?{...p,inventory:[...p.inventory,name]}:p)} style={{background:"rgba(68,170,255,0.06)",border:"1px solid #1a2a40",color:"#44aaff",padding:"3px 8px",borderRadius:2,fontSize:9,fontFamily:"monospace"}}>Give</Btn>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* GM LOG */}
+            <div ref={gmLogRef} style={{height:100,overflowY:"auto",borderTop:"1px solid #1a2535",padding:"6px 10px",background:"rgba(0,0,0,0.5)",flexShrink:0}}>
+              {gmLogs.map((entry,i)=>{
+                const colors={system:"#3dd68c",warn:"#ffaa00",info:"#3a5068"};
+                return<div key={i} style={{fontSize:9,color:colors[entry.type]||"#3a5068",padding:"1px 0",lineHeight:1.4,fontFamily:"monospace"}}>{entry.t} {entry.msg}</div>;
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+    // Mount
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<GMGame />);
+    // Hide loading screen
+    document.getElementById('loading').style.display = 'none';
+  </script>
+</body>
+</html>
