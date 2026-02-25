@@ -1,0 +1,401 @@
+// ============================================================
+// GAME CONSTANTS — Classes, Regions, Items, Mobs, Quests, etc.
+// ============================================================
+var CLASSES = {
+  Warrior:    { icon:"⚔️", hp:600, mana:120, atk:54,mag:0, spd:22, ability:"Shield Bash",  abilityDesc:"Stun 2 turns + ATK×1.2 dmg",      abilityCost:28,
+                lvHp:75, lvAtk:10, lvMag:0,  lvMana:12, attackLabel:"Strike",    attackIcon:"⚔️",  attackIsMag:false },
+  Mage:       { icon:"🔮", hp:260, mana:280, atk:0, mag:92,spd:34, ability:"Fireball",     abilityDesc:"MAG×1.2–1.6 fire damage",          abilityCost:35,
+                lvHp:26, lvAtk:0,  lvMag:12, lvMana:30, attackLabel:"Magic Bolt", attackIcon:"🔮", attackIsMag:true  },
+  Rogue:      { icon:"🗡️",hp:320, mana:140, atk:52,mag:0, spd:78, ability:"Backstab",     abilityDesc:"ATK×2.8 crit + ignore 30% armor",  abilityCost:24,
+                lvHp:38, lvAtk:9,  lvMag:0,  lvMana:15, attackLabel:"Strike",    attackIcon:"🗡️", attackIsMag:false },
+  Paladin:    { icon:"🛡️",hp:620, mana:200, atk:34,mag:38,spd:22, ability:"Holy Shield",  abilityDesc:"Block + MAG×1.0 heal + ATK dmg",   abilityCost:38,
+                lvHp:62, lvAtk:5,  lvMag:5,  lvMana:18, attackLabel:"Holy Strike",attackIcon:"🛡️",attackIsMag:false },
+  Ranger:     { icon:"🏹", hp:360, mana:130, atk:58,mag:0, spd:65, ability:"Volley",       abilityDesc:"ATK×1.9 dmg to ALL enemies",       abilityCost:26,
+                lvHp:42, lvAtk:9,  lvMag:0,  lvMana:13, attackLabel:"Shot",      attackIcon:"🏹", attackIsMag:false },
+  Necromancer:{ icon:"💀", hp:300, mana:280, atk:0, mag:100,spd:28, ability:"Death Drain",  abilityDesc:"MAG×1.1–1.5 dmg + steal 70% HP", abilityCost:58,
+                lvHp:30, lvAtk:0,  lvMag:13, lvMana:32, attackLabel:"Shadow Bolt",attackIcon:"💀",attackIsMag:true  },
+};
+
+var REGIONS = {
+  "Starter Isle":   {danger:1, minLevel:1,  mobs:["Slime","Goblin","Rat"],                        bg:"#0a1a12",accent:"#44cc66", desc:"A peaceful island. Gentle waves and soft grass."},
+  "Darkwood":       {danger:3, minLevel:5,  mobs:["Dire Wolf","Bandit","Dark Elf"],                bg:"#0d1008",accent:"#66cc33", desc:"Dense forest where sunlight barely reaches."},
+  "Ironpeak":       {danger:4, minLevel:10, mobs:["Rock Golem","Dwarf Warrior","Wyvern"],          bg:"#110e08",accent:"#cc8833", desc:"Treacherous mountain passes riddled with ambushes."},
+  "Crystalveil":    {danger:5, minLevel:15, mobs:["Crystal Spider","Phantom","Ice Drake"],         bg:"#080d18",accent:"#4488ff", desc:"Magical realm where crystals float and glow."},
+  "Frostholm":      {danger:6, minLevel:18, mobs:["Ice Golem","Frost Wolf","Snow Wraith"],         bg:"#08101a",accent:"#88ddff", desc:"Eternal tundra ruled by the Frost Titan."},
+  "Shadowmere":     {danger:7, minLevel:22, mobs:["Shadow Demon","Lich","Soul Reaper"],            bg:"#0e080e",accent:"#aa44ff", desc:"Cursed swamp where death walks freely."},
+  "Sunken City":    {danger:8, minLevel:28, mobs:["Deep Crawler","Drowned Knight","Sea Serpent"],  bg:"#060d14",accent:"#22aacc", desc:"Ancient metropolis swallowed by the sea."},
+  "Dragon's Peak":  {danger:9, minLevel:32, mobs:["Drake","Lava Elemental","Ancient Dragon"],      bg:"#180808",accent:"#ff4433", desc:"Volcanic summit. Only legends dare approach."},
+  "Celestial Spire":{danger:9, minLevel:38, mobs:["Seraph Guardian","Celestial Drake","Divine Titan"],bg:"#0e0e18",accent:"#ffee44",desc:"Divine tower piercing the heavens."},
+  "The Abyss":      {danger:10,minLevel:45, mobs:["Void Horror","Chaos Titan","Abyssal God"],      bg:"#050508",accent:"#ff00ff", desc:"The end of all things. Nothing escapes."},
+  "Ember Wastes":   {danger:6, minLevel:20, mobs:["Ash Stalker","Cinder Drake","Magma Golem"],     bg:"#130a04",accent:"#ff6622", desc:"Scorched badlands where magma rivers never cool."},
+  "Void Rift":      {danger:8, minLevel:35, mobs:["Rift Stalker","Void Wraith","Null Titan"],      bg:"#060408",accent:"#cc44ff", desc:"A tear in reality. Physics bends. Death permanent."},
+};
+
+var REGION_SHOPS = {
+  "Starter Isle":   {merchant:"Old Tom",         flavor:"Friendly local with basic supplies.",               buy:["Health Potion","Blood Vial","Mana Potion","Mana Elixir","Antidote","Iron Sword","Iron Shield","Upgrade Stone"]},
+  "Darkwood":       {merchant:"Elara",           flavor:"Deals in poisons as readily as cures.",             buy:["Health Potion","Blood Vial","Antidote","Poison Flask","Shadow Cloak","Mana Elixir","Rage Potion","Cursed Rune"]},
+  "Ironpeak":       {merchant:"Durgin",          flavor:"Battle-tested goods. Priced accordingly.",          buy:["Health Potion","Super Potion","Titan Axe","Iron Shield","Berserker Plate","Dragon Scale","Blinding Dust","Upgrade Stone","War Banner"]},
+  "Crystalveil":    {merchant:"Seraphine",       flavor:"Arcane dealer. Her eyes are the wrong color.",      buy:["Mana Elixir","Staff of Embers","Blinding Dust","Weakness Brew","Frost Shard","Upgrade Stone"]},
+  "Frostholm":      {merchant:"Eira",            flavor:"Sells from an ice forge. Charges in breath.",       buy:["Health Potion","Steel Sword","Frost Shard","Haste Draft","Dragon Scale","Upgrade Stone"]},
+  "Shadowmere":     {merchant:"The Hooded One",  flavor:"Sells what others won't. Remembers everything.",   buy:["Antidote","Shadow Cloak","Poison Flask","Weakness Brew","Elixir of Gods","Dragon Core"]},
+  "Sunken City":    {merchant:"Tide Speaker",    flavor:"Bartered up from the deep.",                        buy:["Super Potion","Steel Staff","Thunder Brew","Weakness Brew","Upgrade Stone","Dragon Core"]},
+  "Dragon's Peak":  {merchant:"Vraxis",          flavor:"Half-dragon. Non-negotiable prices.",               buy:["Dragon Scale","Dragon Sword","Super Potion","Blinding Dust","Elixir of Gods","Dragon Core"]},
+  "Celestial Spire":{merchant:"Auriel's Shop",  flavor:"Radiant goods at a heavenly price.",                buy:["Elixir of Gods","Mythic Blade","Mythic Staff","Mythic Plate","Dragon Core","Haste Draft"]},
+  "The Abyss":      {merchant:"Void Peddler",   flavor:"No face. The prices are paid in regret.",           buy:["Elixir of Gods","Void Armor","Poison Flask","Weakness Brew","Dragon Core","Mythic Plate"]},
+  "Ember Wastes":   {merchant:"Cinder Hagg",    flavor:"Sells from a smoking cart. Smells of ash.",         buy:["Health Potion","Rage Potion","Dragon Scale","Blinding Dust","Super Potion","Dragon Core"]},
+  "Void Rift":      {merchant:"The Fracture",   flavor:"Multiple voices. Prices shift with reality.",        buy:["Elixir of Gods","Mythic Blade","Mythic Staff","Void Armor","Dragon Core","Weakness Brew"]},
+};
+
+var ITEMS = {
+  "Health Potion":   {icon:"🧪",type:"consumable",effect:"heal",        value:150, desc:"Restores 150 HP"},
+  "Mana Elixir":     {icon:"💧",type:"consumable",effect:"mana",        value:80,  desc:"Restores 80 Mana"},
+  "Antidote":        {icon:"💊",type:"consumable",effect:"cure",        value:0,   desc:"Cures poison"},
+  "Super Potion":    {icon:"⚗️",type:"consumable",effect:"heal",        value:400, desc:"Restores 400 HP"},
+  "Elixir of Gods":  {icon:"✨",type:"consumable",effect:"fullheal",    value:0,   desc:"Full HP + Mana"},
+  "Rage Potion":     {icon:"🔴",type:"consumable",effect:"rage",        value:3,   desc:"+50% ATK for 3 combat turns"},
+  "Haste Draft":     {icon:"💨",type:"consumable",effect:"haste",       value:20,  desc:"+20 SPD this combat"},
+  "Poison Flask":    {icon:"🫙",type:"offensive", effect:"enemy_poison",value:20,  desc:"Poison: 20 dmg/turn × 4 turns"},
+  "Blinding Dust":   {icon:"💨",type:"offensive", effect:"enemy_blind", value:3,   desc:"Blind: +25% dodge × 3 turns"},
+  "Weakness Brew":   {icon:"🧫",type:"offensive", effect:"enemy_weaken",value:3,   desc:"Weaken: −30% ATK × 3 turns"},
+  "Frost Shard":     {icon:"🧊",type:"offensive", effect:"enemy_freeze",value:1,   desc:"Freeze: skip enemy's next turn"},
+  "Thunder Brew":    {icon:"⚡",type:"offensive", effect:"enemy_thunder",value:50, desc:"Instant 50 lightning damage"},
+  "Iron Sword":      {icon:"⚔️",type:"weapon",   effect:"atk",         value:15,  desc:"+15 ATK [Tier 1]", tier:1},
+  "Staff of Embers": {icon:"🔥",type:"weapon",   effect:"mag",         value:20,  desc:"+20 MAG [Tier 1]", tier:1},
+  "Steel Sword":     {icon:"⚔️",type:"weapon",   effect:"atk",         value:28,  desc:"+28 ATK [Tier 2]", tier:2},
+  "Steel Staff":     {icon:"🔥",type:"weapon",   effect:"mag",         value:34,  desc:"+34 MAG [Tier 2]", tier:2},
+  "Mythic Blade":    {icon:"🗡️",type:"weapon",   effect:"atk",         value:55,  desc:"+55 ATK [Tier 3]", tier:3},
+  "Mythic Staff":    {icon:"🪄",type:"weapon",   effect:"mag",         value:60,  desc:"+60 MAG [Tier 3]", tier:3},
+  "Dragon Sword":    {icon:"🗡️",type:"weapon",   effect:"atk",         value:40,  desc:"+40 ATK [Crafted]",tier:2},
+  "Mage Staff":      {icon:"🪄",type:"weapon",   effect:"mag",         value:35,  desc:"+35 MAG [Crafted]",tier:2},
+  "Shadow Cloak":    {icon:"🌑",type:"armor",    effect:"spd",         value:10,  desc:"+10 SPD [Tier 1]", tier:1},
+  "Dragon Scale":    {icon:"🐉",type:"armor",    effect:"hp",          value:200, desc:"+200 HP [Tier 1]", tier:1},
+  "Steel Cloak":     {icon:"🌑",type:"armor",    effect:"spd",         value:20,  desc:"+20 SPD [Tier 2]", tier:2},
+  "Steelweave Scale":{icon:"🐉",type:"armor",    effect:"hp",          value:380, desc:"+380 HP [Tier 2]", tier:2},
+  "Mythic Cloak":    {icon:"💨",type:"armor",    effect:"spd",         value:35,  desc:"+35 SPD [Tier 3]", tier:3},
+  "Mythic Plate":    {icon:"🛡️",type:"armor",   effect:"hp",          value:650, desc:"+650 HP [Tier 3]", tier:3},
+  "Void Armor":      {icon:"🌀",type:"armor",    effect:"hp",          value:300, desc:"+300 HP [Crafted]",tier:2},
+  "Upgrade Stone":   {icon:"🪨",type:"material", effect:"upgrade",     value:0,   desc:"Upgrade T1→T2 gear"},
+  "Dragon Core":     {icon:"💎",type:"material", effect:"upgrade2",    value:0,   desc:"Upgrade T2→T3 gear"},
+  "Ember Flask":     {icon:"🔥",type:"offensive",effect:"enemy_burn",  value:4,   desc:"Burn: 15 dmg/turn × 4 turns"},
+  "Void Shard":      {icon:"🌀",type:"offensive",effect:"enemy_void",  value:80,  desc:"Void: 80 true dmg (ignores resist)"},
+  "Phoenix Feather": {icon:"🪶",type:"consumable",effect:"revive",     value:1,   desc:"Auto-revive once with 50% HP"},
+  "Mana Crystal":    {icon:"💠",type:"consumable",effect:"mana",       value:150, desc:"Restores 150 Mana"},
+  "Berserker Brew":  {icon:"🟤",type:"consumable",effect:"berserk",    value:5,   desc:"+80% ATK, -30% DEF for 5 turns"},
+  "Void Blade":      {icon:"🌑",type:"weapon",   effect:"atk",         value:70,  desc:"+70 ATK [Void Tier]", tier:3},
+  "Void Staff":      {icon:"🌀",type:"weapon",   effect:"mag",         value:75,  desc:"+75 MAG [Void Tier]", tier:3},
+  "Ember Scale":     {icon:"🔥",type:"armor",    effect:"hp",          value:250, desc:"+250 HP [Ember Tier]",tier:2},
+  "Rift Cloak":      {icon:"🌀",type:"armor",    effect:"spd",         value:28,  desc:"+28 SPD [Rift Tier]", tier:2},
+  "Spell Tome":      {icon:"📖",type:"material", effect:"tome",        value:0,   desc:"Unlocks a random spell for Mage/Necromancer"},
+  "Blood Vial":      {icon:"🩸",type:"consumable",effect:"heal",        value:80,  desc:"Restores 80 HP (cheap)"},
+  "Mana Potion":     {icon:"💙",type:"consumable",effect:"mana",        value:50,  desc:"Restores 50 Mana (cheap)"},
+  "War Banner":      {icon:"🚩",type:"consumable",effect:"war_banner",  value:4,   desc:"+30% ATK/MAG for 4 turns"},
+  "Cursed Rune":     {icon:"🔮",type:"offensive", effect:"enemy_curse", value:3,   desc:"Curse: −40% ATK × 3 turns"},
+  "Life Crystal":    {icon:"💗",type:"consumable",effect:"revive",      value:1,   desc:"Auto-revive once with 30% HP (cheaper option)"},
+  "Iron Shield":     {icon:"🛡️",type:"armor",    effect:"hp",          value:120, desc:"+120 HP [Tier 1]",tier:1},
+  "Titan Axe":       {icon:"🪓",type:"weapon",   effect:"atk",         value:32,  desc:"+32 ATK [Tier 2]",tier:2},
+  "Arcane Tome":     {icon:"📕",type:"weapon",   effect:"mag",         value:38,  desc:"+38 MAG [Tier 2]",tier:2},
+  "Berserker Plate": {icon:"🩸",type:"armor",    effect:"hp",          value:320, desc:"+320 HP [Tier 2]",tier:2},
+  "Soul Gem":        {icon:"💠",type:"material", effect:"upgrade2",    value:0,   desc:"Alt upgrade material — Tier 2→3"},
+};
+
+var UPGRADE_PATHS = {
+  "Iron Sword":      {to:"Steel Sword",      cost:1200, req:"Upgrade Stone"},
+  "Steel Sword":     {to:"Mythic Blade",     cost:4500, req:"Dragon Core"},
+  "Staff of Embers": {to:"Steel Staff",      cost:1200, req:"Upgrade Stone"},
+  "Steel Staff":     {to:"Mythic Staff",     cost:4500, req:"Dragon Core"},
+  "Dragon Sword":    {to:"Mythic Blade",     cost:3600, req:"Dragon Core"},
+  "Mage Staff":      {to:"Mythic Staff",     cost:3600, req:"Dragon Core"},
+  "Shadow Cloak":    {to:"Steel Cloak",      cost:900,  req:"Upgrade Stone"},
+  "Steel Cloak":     {to:"Mythic Cloak",     cost:3600, req:"Dragon Core"},
+  "Dragon Scale":    {to:"Steelweave Scale", cost:1400, req:"Upgrade Stone"},
+  "Steelweave Scale":{to:"Mythic Plate",     cost:5000, req:"Dragon Core"},
+  "Iron Shield":     {to:"Berserker Plate",  cost:800,  req:"Upgrade Stone"},
+  "Berserker Plate": {to:"Mythic Plate",     cost:4200, req:"Dragon Core"},
+  "Titan Axe":       {to:"Dragon Sword",     cost:1600, req:"Upgrade Stone"},
+  "Arcane Tome":     {to:"Mage Staff",       cost:1500, req:"Upgrade Stone"},
+};
+
+var MOB_TEMPLATES = {
+  "Slime":           {hp:70,   atk:10,  xp:15,  gold:5,    icon:"🟢",desc:"Wiggles ominously."},
+  "Goblin":          {hp:110,  atk:16,  xp:28,  gold:13,   icon:"👺",desc:"Clutches a rusty dagger."},
+  "Rat":             {hp:55,   atk:8,   xp:11,  gold:4,    icon:"🐀",poisonChance:0.30,desc:"Festering bite."},
+  "Dire Wolf":       {hp:200,  atk:32,  xp:65,  gold:22,   icon:"🐺",desc:"Eyes glow red."},
+  "Bandit":          {hp:260,  atk:40,  xp:85,  gold:50,   icon:"🦹",desc:"Demands your gold."},
+  "Dark Elf":        {hp:220,  atk:45,  xp:95,  gold:38,   icon:"🧝",poisonChance:0.20,desc:"Deadly grace."},
+  "Rock Golem":      {hp:550,  atk:58,  xp:160, gold:70,   icon:"🪨",desc:"Trembles the ground."},
+  "Dwarf Warrior":   {hp:380,  atk:52,  xp:135, gold:62,   icon:"⛏️",desc:"Short but furious."},
+  "Wyvern":          {hp:650,  atk:75,  xp:240, gold:115,  icon:"🦎",desc:"Wings block the sky."},
+  "Crystal Spider":  {hp:340,  atk:48,  xp:145, gold:58,   icon:"🕷️",poisonChance:0.45,desc:"Venom crystallizes blood."},
+  "Phantom":         {hp:290,  atk:62,  xp:165, gold:45,   icon:"👻",poisonChance:0.20,desc:"Phases through attacks."},
+  "Ice Drake":       {hp:750,  atk:92,  xp:300, gold:150,  icon:"🐲",desc:"Breathes frostfire."},
+  "Ice Golem":       {hp:800,  atk:82,  xp:230, gold:98,   icon:"❄️",desc:"Frozen colossus."},
+  "Frost Wolf":      {hp:400,  atk:65,  xp:125, gold:55,   icon:"🐺",desc:"Howls that chill souls."},
+  "Snow Wraith":     {hp:540,  atk:88,  xp:185, gold:72,   icon:"👻",poisonChance:0.12,desc:"Death made of frost."},
+  "Shadow Demon":    {hp:900,  atk:102, xp:420, gold:230,  icon:"😈",poisonChance:0.15,desc:"Feeds on fear."},
+  "Lich":            {hp:1100, atk:115, xp:600, gold:350,  icon:"💀",desc:"Ancient undead sorcerer."},
+  "Soul Reaper":     {hp:1300, atk:135, xp:720, gold:460,  icon:"💀",desc:"Death made manifest."},
+  "Deep Crawler":    {hp:860,  atk:105, xp:275, gold:130,  icon:"🦑",poisonChance:0.35,desc:"Ancient depths horror."},
+  "Drowned Knight":  {hp:980,  atk:118, xp:350, gold:165,  icon:"🗡️",desc:"Battles beyond death."},
+  "Sea Serpent":     {hp:1350, atk:142, xp:490, gold:240,  icon:"🐍",poisonChance:0.45,desc:"Coils that crush ships."},
+  "Drake":           {hp:1500, atk:148, xp:840, gold:580,  icon:"🐉",desc:"Young dragon, still deadly."},
+  "Lava Elemental":  {hp:1700, atk:160, xp:960, gold:700,  icon:"🌋",desc:"Burns everything."},
+  "Ancient Dragon":  {hp:3800, atk:205, xp:2400,gold:1800, icon:"🐉",desc:"Apex of draconic power."},
+  "Seraph Guardian": {hp:1550, atk:165, xp:625, gold:360,  icon:"😇",desc:"Fallen from grace, lethal."},
+  "Celestial Drake": {hp:2400, atk:210, xp:1020,gold:600,  icon:"🌟",desc:"Born of starlight and fury."},
+  "Divine Titan":    {hp:5000, atk:255, xp:1920,gold:1450, icon:"⚡",desc:"A god's broken warrior."},
+  "Void Horror":     {hp:2900, atk:228, xp:1800,gold:1150, icon:"👁️",desc:"Reality warps around it."},
+  "Chaos Titan":     {hp:5800, atk:250, xp:3600,gold:2400, icon:"🗿",desc:"God of destruction."},
+  "Abyssal God":     {hp:15000,atk:340, xp:12000,gold:12000,icon:"🌀",desc:"You shouldn't be here."},
+  "Ash Stalker":     {hp:600,  atk:78,  xp:192, gold:86,   icon:"💨",poisonChance:0.15,desc:"Stalks through ash clouds."},
+  "Cinder Drake":    {hp:900,  atk:100, xp:264, gold:126,  icon:"🔥",desc:"Young fire-breather."},
+  "Magma Golem":     {hp:1200, atk:120, xp:360, gold:185,  icon:"🌋",desc:"Molten fists. Slow but lethal."},
+  "Rift Stalker":    {hp:980,  atk:125, xp:420, gold:220,  icon:"👁️",poisonChance:0.20,desc:"Teleports before striking."},
+  "Void Wraith":     {hp:1150, atk:148, xp:504, gold:276,  icon:"🌀",desc:"Made of nothingness."},
+  "Null Titan":      {hp:3400, atk:198, xp:2160,gold:1400, icon:"⬛",desc:"Erases what it touches."},
+  "Ember Wyvern":    {hp:1800, atk:160, xp:960, gold:640,  icon:"🐉",boss:true,desc:"Flame-born wyvern!"},
+  "Void Colossus":   {hp:14000,atk:305, xp:9000,gold:9000, icon:"🌀",boss:true,desc:"Titan of the rift."},
+  "Ash Phoenix":     {hp:4200, atk:182, xp:2640,gold:1680, icon:"🪶",boss:true,desc:"Dies and rises again!"},
+  "Elder Dragon":    {hp:9500, atk:285, xp:6000,gold:6000, icon:"🐉",desc:"Summoned by the GM!",boss:true},
+  "Demon Lord":      {hp:7600, atk:250, xp:4800,gold:4800, icon:"👹",desc:"Demon Invasion commander!",boss:true},
+  "Meteor Elemental":{hp:6700, atk:228, xp:4200,gold:3600, icon:"☄️",desc:"Forged from fallen stars!",boss:true},
+  "Goblin King":     {hp:1700, atk:75,  xp:1080,gold:540,  icon:"👺",desc:"The goblin king!",boss:true},
+  "Bandit Lord":     {hp:2700, atk:100, xp:1680,gold:900,  icon:"🦹",desc:"Commands bandit armies!",boss:true},
+  "Iron Colossus":   {hp:4200, atk:122, xp:2640,gold:1320, icon:"🪨",desc:"Unstoppable iron giant!",boss:true},
+  "Crystal Hydra":   {hp:5400, atk:145, xp:3360,gold:1560, icon:"💎",desc:"Multi-headed serpent!",boss:true},
+  "Frost Titan":     {hp:5800, atk:156, xp:3600,gold:1920, icon:"❄️",desc:"Ruler of Frostholm!",boss:true},
+  "Ancient Lich King":{hp:7200,atk:184, xp:4560,gold:2400, icon:"💀",desc:"Lich of immeasurable age!",boss:true},
+  "Sunken Leviathan":{hp:7600, atk:193, xp:4800,gold:3000, icon:"🌊",desc:"Ruler of the drowned deep!",boss:true},
+  "Dragon Sovereign":{hp:10500,atk:238, xp:6600,gold:4200, icon:"🐉",desc:"King of all dragonkind.",boss:true},
+  "Seraph Destroyer":{hp:9500, atk:244, xp:6000,gold:4800, icon:"🌟",desc:"Fallen celestial power!",boss:true},
+  "Void Sovereign":  {hp:17000,atk:328, xp:10800,gold:10800,icon:"🌀",desc:"Final guardian of nothingness.",boss:true},
+};
+
+var DUNGEON_DATA = {
+  "Starter Isle":   {name:"Goblin King's Lair",   rooms:4,boss:"Goblin King",       reward:350},
+  "Darkwood":       {name:"Bandit Fortress",       rooms:5,boss:"Bandit Lord",       reward:700},
+  "Ironpeak":       {name:"Golem Mines",           rooms:5,boss:"Iron Colossus",     reward:1100},
+  "Crystalveil":    {name:"Crystal Caverns",       rooms:6,boss:"Crystal Hydra",     reward:1600},
+  "Frostholm":      {name:"Frost Keep",            rooms:5,boss:"Frost Titan",       reward:1800},
+  "Shadowmere":     {name:"Lich's Crypt",          rooms:6,boss:"Ancient Lich King", reward:2800},
+  "Sunken City":    {name:"Drowned Palace",        rooms:6,boss:"Sunken Leviathan",  reward:3200},
+  "Dragon's Peak":  {name:"Dragon Nest",           rooms:7,boss:"Dragon Sovereign",  reward:5000},
+  "Celestial Spire":{name:"Heaven's Gate",         rooms:7,boss:"Seraph Destroyer",  reward:6000},
+  "The Abyss":      {name:"Void Sanctum",          rooms:8,boss:"Void Sovereign",    reward:9999},
+  "Ember Wastes":   {name:"Magma Fortress",         rooms:5,boss:"Ember Wyvern",      reward:2200},
+  "Void Rift":      {name:"Null Chamber",           rooms:7,boss:"Void Colossus",     reward:8000},
+};
+
+var PARTY_RECRUITS = {
+  "Starter Isle":   {name:"Tom Jr.",  cls:"Warrior",     icon:"⚔️", hp:200,maxHp:200,atk:20, cost:80},
+  "Darkwood":       {name:"Sylva",    cls:"Ranger",      icon:"🏹", hp:190,maxHp:190,atk:35, cost:250},
+  "Ironpeak":       {name:"Durgax",   cls:"Warrior",     icon:"⛏️", hp:320,maxHp:320,atk:48, cost:500},
+  "Crystalveil":    {name:"Lyria",    cls:"Mage",        icon:"🔮", hp:165,maxHp:165,atk:60, cost:750},
+  "Frostholm":      {name:"Eira",     cls:"Ranger",      icon:"❄️", hp:240,maxHp:240,atk:52, cost:900},
+  "Shadowmere":     {name:"Vox",      cls:"Necromancer", icon:"💀", hp:210,maxHp:210,atk:80, cost:1200},
+  "Sunken City":    {name:"Marelin",  cls:"Mage",        icon:"🌊", hp:185,maxHp:185,atk:70, cost:1500},
+  "Dragon's Peak":  {name:"Kael",     cls:"Paladin",     icon:"🛡️",hp:420,maxHp:420,atk:90, cost:2000},
+  "Celestial Spire":{name:"Auriel",   cls:"Paladin",     icon:"🌟", hp:480,maxHp:480,atk:110,cost:3000},
+  "The Abyss":      {name:"?????",    cls:"Unknown",     icon:"👁️", hp:600,maxHp:600,atk:150,cost:5000},
+  "Ember Wastes":   {name:"Ignis",    cls:"Warrior",     icon:"🔥", hp:380,maxHp:380,atk:95, cost:1800},
+  "Void Rift":      {name:"Nyx",      cls:"Rogue",       icon:"🌑", hp:300,maxHp:300,atk:130,cost:4000},
+};
+
+var WORLD_EVENTS = [
+  {id:"raid",    name:"Dragon Raid",   icon:"🐉",color:"#ff4444",boss:"Elder Dragon",    duration:120,desc:"An elder dragon terrorizes the realm!"},
+  {id:"invasion",name:"Demon Invasion",icon:"👹",color:"#aa44ff",boss:"Demon Lord",       duration:90, desc:"Demon hordes pour through a rift!"},
+  {id:"meteor",  name:"Meteor Storm",  icon:"☄️",color:"#ff8800",boss:"Meteor Elemental", duration:60, desc:"Meteors rain from the sky!"},
+  {id:"festival",name:"XP Festival",  icon:"🎉",color:"#44ff88",boss:null,               duration:180,desc:"3× XP for all players!"},
+  {id:"goldrush",name:"Gold Rush",     icon:"🏅",color:"#ffd700",boss:null,               duration:120,desc:"5× gold from enemies!"},
+  {id:"war",     name:"Faction War",   icon:"⚔️",color:"#ff2244",boss:null,               duration:90, desc:"PvP enabled — players attack on sight!"},
+  {id:"eclipse", name:"Blood Eclipse", icon:"🌘",color:"#cc2200",boss:null,               duration:60, desc:"All monsters empowered!"},
+];
+
+var WEATHER_EFFECTS = {
+  clear:{playerDmgMult:1.00,enemyDmgMult:1.00,dodgeBonus:0.00,spawnMod:0,  label:"Clear skies — normal."},
+  rain: {playerDmgMult:0.90,enemyDmgMult:0.90,dodgeBonus:0.05,spawnMod:0,  label:"Rain — −10% dmg both sides. +5% dodge."},
+  storm:{playerDmgMult:0.85,enemyDmgMult:1.15,dodgeBonus:0.00,spawnMod:15, label:"Storm — enemies rage! Attacks falter."},
+  snow: {playerDmgMult:0.90,enemyDmgMult:0.90,dodgeBonus:0.00,spawnMod:-15,label:"Snow — −15% spawns."},
+  fog:  {playerDmgMult:0.85,enemyDmgMult:0.85,dodgeBonus:0.10,spawnMod:-20,label:"Fog — +10% dodge."},
+  blood:{playerDmgMult:1.30,enemyDmgMult:1.40,dodgeBonus:0.00,spawnMod:25, label:"Blood moon — all damage surges."},
+};
+
+var NPC_PLAYERS = [
+  {id:2, name:"ShadowKnight99",level:87,cls:"Warrior",    region:"Darkwood",       status:"online"},
+  {id:3, name:"MysticArrow",   level:62,cls:"Ranger",     region:"Ironpeak",       status:"online"},
+  {id:4, name:"GriefQueen",    level:99,cls:"Rogue",      region:"Shadowmere",     status:"online"},
+  {id:5, name:"NewbieHero",    level:3, cls:"Paladin",    region:"Starter Isle",   status:"online"},
+  {id:6, name:"ChaosWizard",   level:78,cls:"Necromancer",region:"Shadowmere",     status:"offline"},
+  {id:7, name:"IronVeil",      level:44,cls:"Warrior",    region:"Ironpeak",       status:"online"},
+  {id:8, name:"VoidSerpent",   level:95,cls:"Rogue",      region:"The Abyss",      status:"online"},
+  {id:9, name:"LunaFrost",     level:38,cls:"Mage",       region:"Frostholm",      status:"online"},
+  {id:10,name:"StormRider",    level:55,cls:"Ranger",     region:"Dragon's Peak",  status:"online"},
+  {id:11,name:"HolyAvenger",   level:71,cls:"Paladin",    region:"Shadowmere",     status:"online"},
+  {id:12,name:"BoneHarvest",   level:88,cls:"Necromancer",region:"The Abyss",      status:"online"},
+  {id:13,name:"NightBlade",    level:22,cls:"Rogue",      region:"Darkwood",       status:"online"},
+  {id:14,name:"RuneKeeper",    level:60,cls:"Mage",       region:"Crystalveil",    status:"offline"},
+  {id:15,name:"GoblinBane",    level:9, cls:"Warrior",    region:"Starter Isle",   status:"online"},
+  {id:16,name:"AshWalker",     level:34,cls:"Ranger",     region:"Darkwood",       status:"online"},
+  {id:17,name:"CrimsonPalm",   level:77,cls:"Paladin",    region:"Dragon's Peak",  status:"online"},
+  {id:18,name:"SoulEater_X",   level:99,cls:"Necromancer",region:"The Abyss",      status:"online"},
+  {id:19,name:"QuickSilver",   level:48,cls:"Rogue",      region:"Ironpeak",       status:"online"},
+  {id:20,name:"FrostArrow",    level:15,cls:"Ranger",     region:"Frostholm",      status:"online"},
+  {id:21,name:"TideCaller",    level:52,cls:"Mage",       region:"Sunken City",    status:"online"},
+  {id:22,name:"SeraphBorn",    level:81,cls:"Paladin",    region:"Celestial Spire",status:"online"},
+  {id:23,name:"DarkProphet",   level:66,cls:"Necromancer",region:"Crystalveil",    status:"online"},
+  {id:24,name:"BerserkerKing", level:93,cls:"Warrior",    region:"Dragon's Peak",  status:"online"},
+  {id:25,name:"MirrorSlash",   level:41,cls:"Rogue",      region:"Sunken City",    status:"online"},
+];
+
+var NPC_ACTIONS=[
+  n=>`${n.name} slew a ${["Goblin","Bandit","Drake","Phantom","Sea Serpent"][Math.floor(Math.random()*5)]}.`,
+  n=>`${n.name} found a treasure chest!`,n=>`${n.name} leveled up!`,
+  n=>`${n.name} entered ${Object.keys(REGIONS)[Math.floor(Math.random()*10)]}.`,
+  n=>`${n.name} completed a dungeon!`,n=>`${n.name} died and respawned.`,
+  n=>`${n.name} crafted a Dragon Sword!`,n=>`${n.name} upgraded gear to Mythic!`,
+  n=>`${n.name} recruited a party member.`,n=>`${n.name} challenged another player!`,
+];
+
+var SKILL_TREE = {
+  "Power Strike":  {icon:"⚔️",desc:"+20% ATK dmg/rank",     cost:1,maxRank:3,effect:"atk_pct",    value:0.20,classes:["Warrior","Rogue","Ranger","Paladin"]},
+  "Iron Body":     {icon:"❤️",desc:"+100 Max HP/rank",       cost:1,maxRank:3,effect:"maxhp",      value:100, classes:["Warrior","Paladin"]},
+  "Arcane Mind":   {icon:"💧",desc:"+40 Max Mana/rank",      cost:1,maxRank:3,effect:"maxmana",    value:40,  classes:["Mage","Necromancer","Paladin"]},
+  "Swiftness":     {icon:"💨",desc:"+8 SPD/rank (+dodge)",   cost:1,maxRank:3,effect:"spd",        value:8,   classes:["Rogue","Ranger","Mage"]},
+  "Spell Mastery": {icon:"🔮",desc:"+25% MAG dmg/rank",      cost:2,maxRank:2,effect:"mag_pct",    value:0.25,classes:["Mage","Necromancer"]},
+  "Treasure Hunter":{icon:"💰",desc:"+30% gold/rank",        cost:2,maxRank:2,effect:"gold_pct",   value:0.30,classes:null},
+  "Lucky Strike":  {icon:"🍀",desc:"20% chance 2× damage",  cost:2,maxRank:1,effect:"crit",       value:0.20,classes:["Rogue","Warrior","Ranger"]},
+  "Regeneration":  {icon:"✨",desc:"+10 HP after each fight",cost:2,maxRank:1,effect:"regen",      value:10,  classes:null},
+  "Mana Shield":   {icon:"🛡️",desc:"15% negate hit chance", cost:3,maxRank:1,effect:"mana_shield",value:0.15,classes:["Mage","Paladin","Necromancer"]},
+  "Battle Hardened":{icon:"🦾",desc:"−5% dmg taken/rank",     cost:2,maxRank:3,effect:"def_pct",    value:0.05,classes:null},
+  "Second Wind":    {icon:"💨",desc:"20% chance +60 HP on hit",cost:3,maxRank:1,effect:"second_wind",value:60,  classes:["Warrior","Paladin","Rogue"]},
+  "Arcane Surge":   {icon:"⚡",desc:"+18% spell dmg/rank",     cost:2,maxRank:2,effect:"spell_surge",value:0.18,classes:["Mage","Necromancer"]},
+  "Vampiric Touch": {icon:"🩸",desc:"Heal 8% of dmg dealt",    cost:3,maxRank:1,effect:"vampiric",   value:0.08,classes:["Rogue","Necromancer"]},
+  "Momentum":       {icon:"🔥",desc:"+8% ATK per combo stack",cost:2,maxRank:2,effect:"momentum",   value:0.08,classes:["Warrior","Rogue","Ranger"]},
+};
+
+var CRAFT_RECIPES=[
+  {name:"Super Potion",  icon:"⚗️",requires:["Health Potion","Health Potion","Mana Elixir"],result:"Super Potion",  desc:"Restores 400 HP"},
+  {name:"Dragon Sword",  icon:"🗡️",requires:["Iron Sword","Dragon Scale"],                  result:"Dragon Sword",  desc:"+40 ATK"},
+  {name:"Mage Staff",    icon:"🪄",requires:["Staff of Embers","Staff of Embers"],           result:"Mage Staff",    desc:"+35 MAG"},
+  {name:"Void Armor",    icon:"🌀",requires:["Shadow Cloak","Dragon Scale"],                 result:"Void Armor",    desc:"+300 HP"},
+  {name:"Elixir of Gods",icon:"✨",requires:["Health Potion","Mana Elixir","Antidote"],      result:"Elixir of Gods",desc:"Full HP + Mana"},
+  {name:"Rage Potion",   icon:"🔴",requires:["Health Potion","Mana Elixir"],                 result:"Rage Potion",   desc:"+50% ATK 3 turns"},
+  {name:"War Banner",    icon:"🚩",requires:["Rage Potion","Health Potion"],                   result:"War Banner",    desc:"+30% ATK/MAG 4 turns"},
+  {name:"Titan Axe",     icon:"🪓",requires:["Iron Sword","Dragon Scale","Iron Shield"],        result:"Titan Axe",     desc:"+32 ATK"},
+  {name:"Arcane Tome",   icon:"📕",requires:["Staff of Embers","Mana Crystal"],                result:"Arcane Tome",   desc:"+38 MAG"},
+];
+
+var SHOP_PRICES={
+  "Health Potion":{buy:90,sell:30},"Mana Elixir":{buy:105,sell:40},"Antidote":{buy:55,sell:15},
+  "Poison Flask":{buy:120,sell:40},"Blinding Dust":{buy:140,sell:50},"Weakness Brew":{buy:155,sell:55},
+  "Frost Shard":{buy:185,sell:70},"Thunder Brew":{buy:230,sell:85},"Rage Potion":{buy:200,sell:75},
+  "Haste Draft":{buy:170,sell:62},"Iron Sword":{buy:380,sell:110},"Staff of Embers":{buy:440,sell:140},
+  "Steel Sword":{buy:780,sell:280},"Steel Staff":{buy:840,sell:300},"Mythic Blade":{buy:2800,sell:950},
+  "Mythic Staff":{buy:2800,sell:950},"Shadow Cloak":{buy:340,sell:110},"Dragon Scale":{buy:920,sell:300},
+  "Steel Cloak":{buy:700,sell:250},"Steelweave Scale":{buy:1400,sell:480},"Mythic Cloak":{buy:3100,sell:1100},
+  "Mythic Plate":{buy:3900,sell:1400},"Elixir of Gods":{buy:1400,sell:550},"Super Potion":{buy:420,sell:110},
+  "Dragon Sword":{buy:1100,sell:380},"Mage Staff":{buy:1000,sell:360},"Void Armor":{buy:1250,sell:440},
+  "Upgrade Stone":{buy:620,sell:160},"Dragon Core":{buy:2400,sell:700},
+  "Ember Flask":{buy:185,sell:62},"Void Shard":{buy:620,sell:210},"Phoenix Feather":{buy:1900,sell:700},
+  "Mana Crystal":{buy:280,sell:95},"Berserker Brew":{buy:340,sell:120},"Spell Tome":{buy:1200,sell:420},
+  "Void Blade":{buy:5200,sell:1900},"Void Staff":{buy:5200,sell:1900},
+  "Ember Scale":{buy:1400,sell:500},"Rift Cloak":{buy:1450,sell:520},"Blood Vial":{buy:45,sell:12},"Mana Potion":{buy:55,sell:15},"War Banner":{buy:280,sell:90},"Cursed Rune":{buy:160,sell:50},"Life Crystal":{buy:600,sell:200},"Iron Shield":{buy:320,sell:90},"Titan Axe":{buy:820,sell:280},"Arcane Tome":{buy:880,sell:300},"Berserker Plate":{buy:1100,sell:380},"Soul Gem":{buy:1800,sell:600},
+};
+
+var GLOBAL_QUESTS=[
+  {id:1, name:"First Steps",    desc:"Survive your first combat.",        done:false, reward:50},
+  {id:2, name:"Goblin Slayer",  desc:"Kill 3 Goblins.",                   done:false, progress:0,goal:3,  reward:200},
+  {id:3, name:"Explorer",       desc:"Visit 3 different regions.",         done:false, visited:["Starter Isle"],goal:3,reward:500},
+  {id:4, name:"Treasure Hunter",desc:"Find 5 treasure chests.",           done:false, progress:0,goal:5,  reward:800},
+  {id:5, name:"Wealthy",        desc:"Accumulate 1,000 gold at once.",     done:false, reward:1000},
+  {id:6, name:"Dragon Slayer",  desc:"Defeat a Drake or Ancient Dragon.", done:false, reward:2000},
+  {id:7, name:"Blacksmith",     desc:"Craft 3 items.",                    done:false, progress:0,goal:3,  reward:600},
+  {id:8, name:"Night Fighter",  desc:"Win 3 battles at night.",           done:false, progress:0,goal:3,  reward:750},
+  {id:9, name:"Alchemist",      desc:"Use 3 offensive items in combat.",  done:false, progress:0,goal:3,  reward:500},
+  {id:11,name:"Dungeon Crawler",desc:"Complete your first dungeon.",       done:false, reward:1500},
+  {id:12,name:"Companion",      desc:"Recruit a party member.",           done:false, reward:400},
+  {id:13,name:"Forgemaster",    desc:"Upgrade any item to Tier 2+.",      done:false, reward:800},
+  {id:14,name:"Elite Hunter",    desc:"Kill 100 enemies.",                 done:false, progress:0,goal:100, reward:3000},
+  {id:15,name:"Deep Delver",     desc:"Complete 3 dungeons.",              done:false, progress:0,goal:3,   reward:4000},
+  {id:16,name:"Master Crafter",  desc:"Craft 10 items.",                  done:false, progress:0,goal:10,  reward:2500},
+  {id:17,name:"High Roller",     desc:"Accumulate 10,000 gold.",          done:false, reward:6000},
+  {id:18,name:"Night Stalker",   desc:"Win 15 battles at night.",         done:false, progress:0,goal:15,  reward:1800},
+  {id:19,name:"Survivor",        desc:"Win 30 combats total.",            done:false, progress:0,goal:30,  reward:2200},
+];
+
+var CLASS_QUESTS={
+  Warrior:    {id:10,name:"Ironclad",     desc:"Stun 5 enemies.",           done:false,progress:0,goal:5,   reward:900},
+  Mage:       {id:10,name:"Pyromaniac",   desc:"Deal 1,500 magic damage.",  done:false,progress:0,goal:1500,reward:900},
+  Rogue:      {id:10,name:"Shadow Strike",desc:"Land 5 Backstabs.",         done:false,progress:0,goal:5,   reward:900},
+  Paladin:    {id:10,name:"Holy Warrior", desc:"Block 3 hits with Shield.", done:false,progress:0,goal:3,   reward:900},
+  Ranger:     {id:10,name:"Eagle Eye",    desc:"Volley 2+ enemies 3 times.",done:false,progress:0,goal:3,   reward:900},
+  Necromancer:{id:10,name:"Lifedrinker",  desc:"Drain 500 total HP.",       done:false,progress:0,goal:500, reward:900},
+};
+
+var ACHIEVEMENTS_DEF=[
+  {id:"first_blood",name:"First Blood",    icon:"🩸",desc:"Win your first combat"},
+  {id:"dungeon1",   name:"Crawler",        icon:"🏰",desc:"Complete a dungeon"},
+  {id:"dungeon5",   name:"Dungeon Master", icon:"🗝️",desc:"Complete 5 dungeons"},
+  {id:"level10",    name:"Seasoned",       icon:"⭐",desc:"Reach level 10"},
+  {id:"level25",    name:"Veteran",        icon:"🌟",desc:"Reach level 25"},
+  {id:"level50",    name:"Legendary",      icon:"👑",desc:"Reach level 50"},
+  {id:"rich",       name:"Wealthy Lord",   icon:"💰",desc:"Hold 10,000+ gold"},
+  {id:"kills50",    name:"Monster Hunter", icon:"⚔️",desc:"50 kills"},
+  {id:"kills200",   name:"Warlord",        icon:"💀",desc:"200 kills"},
+  {id:"dragon",     name:"Dragonslayer",   icon:"🐉",desc:"Defeat an Ancient Dragon"},
+  {id:"mythic",     name:"Mythic Forger",  icon:"⚒️",desc:"Own a Mythic tier item"},
+  {id:"party",      name:"Companions",     icon:"🤝",desc:"Recruit a party member"},
+  {id:"allregions", name:"Cartographer",   icon:"🗺️",desc:"Visit all 10 regions"},
+  {id:"kills500",   name:"Death Dealer",    icon:"☠️",desc:"500 kills"},
+  {id:"level75",    name:"Godlike",         icon:"👑",desc:"Reach level 75"},
+  {id:"rich2",      name:"Tycoon",          icon:"💎",desc:"Hold 50,000 gold"},
+  {id:"dungeon10",  name:"Delvemaster",     icon:"🏰",desc:"Complete 10 dungeons"},
+];
+
+var SPELLS = {
+  Mage:[
+    {id:"ice_lance",   name:"Ice Lance",       icon:"🧊",lvl:1,  cost:30, dmg:[0.55,0.75],multi:false,freeze:true, drain:0,   desc:"55–75% MAG ice dmg + freeze chance"},
+    {id:"chain_light", name:"Chain Lightning", icon:"⚡",lvl:8,  cost:55, dmg:[0.60,0.80],multi:true, freeze:false,drain:0,   desc:"60–80% MAG to ALL enemies"},
+    {id:"meteor",      name:"Meteor",          icon:"☄️",lvl:15, cost:80, dmg:[1.50,2.00],multi:false,freeze:false,drain:0,   desc:"150–200% MAG massive fire damage"},
+    {id:"blizzard",    name:"Blizzard",        icon:"❄️",lvl:25, cost:100,dmg:[0.85,1.10],multi:true, freeze:true, drain:0,   desc:"Freezes ALL + 85–110% MAG each"},
+  ],
+  Necromancer:[
+    {id:"bone_spear",  name:"Bone Spear",      icon:"🦴",lvl:1,  cost:25, dmg:[0.50,0.65],multi:false,freeze:false,drain:0,   desc:"50–65% MAG piercing bone damage"},
+    {id:"soul_rip",    name:"Soul Rip",        icon:"💜",lvl:8,  cost:45, dmg:[0.75,0.95],multi:false,freeze:false,drain:0.8, desc:"75–95% MAG dmg, steal 80% as HP"},
+    {id:"plague",      name:"Plague",          icon:"☠️",lvl:15, cost:60, dmg:[0.30,0.40],multi:true, freeze:false,drain:0,   desc:"Poisons ALL enemies 30–40% MAG/turn × 4"},
+    {id:"death_nova",  name:"Death Nova",      icon:"💀",lvl:25, cost:90, dmg:[1.30,1.70],multi:false,freeze:false,drain:0.3, desc:"130–170% MAG death dmg, drain 30% as HP"},
+  ],
+};
+
+var SHRINE_BUFFS=[
+  {id:"hp",   icon:"❤️",label:"Blessing of Life",   desc:"Fully restore HP"},
+  {id:"atk",  icon:"⚔️",label:"Blessing of War",    desc:"+20 ATK permanently"},
+  {id:"xp",   icon:"⭐",label:"Blessing of Insight", desc:"+500 XP instantly"},
+  {id:"mana", icon:"💧",label:"Blessing of Mana",    desc:"Fully restore Mana"},
+  {id:"gold", icon:"💰",label:"Blessing of Fortune", desc:"+300 gold"},
+];
+
+var WANDERER_POOL=["Health Potion","Super Potion","Mana Elixir","Antidote","Poison Flask","Frost Shard","Blinding Dust","Thunder Brew","Rage Potion","Haste Draft","Weakness Brew","Ember Flask","Spell Tome"];
+
+var T={
+  gameBg:"#0a0804",gameCard:"#110e08",gameBorder:"#2a1e0a",gameAccent:"#e8aa44",
+  gameText:"#d4b896",gameDim:"#5a4030",gameDanger:"#ff5533",gameGreen:"#55cc66",
+  gmBg:"#07090d",gmCard:"#0d1117",gmBorder:"#1a2535",gmAccent:"#3dd68c",
+  gmText:"#b8cfe0",gmDim:"#3a5068",gmDanger:"#ff4444",gmWarn:"#ffaa00",
+  gmBlue:"#44aaff",gmGold:"#ffd700",
+};
+
+var TUTORIAL_STEPS=[
+  {icon:"⚔️",title:"Welcome to Etherion!",desc:"You are an adventurer in a dark fantasy realm. Fight monsters, gain levels, collect loot, and conquer dungeons. The world is harsh — rest costs gold, enemies hit hard, and every run demands strategy.",hint:"Tip: Start on Starter Isle. Explore to encounter enemies."},
+  {icon:"❤️",title:"Your Stats",desc:"Top of screen shows HP, Mana, XP and Gold. Watch your HP in combat — if it hits 0 you respawn with 50% HP and lose some gold. Rest to recover, but it costs gold!",hint:"Tip: HP does NOT auto-regen between fights. Rest or use potions."},
+  {icon:"🌍",title:"Explore & Travel",desc:"Hit EXPLORE to hunt enemies in your current region. As you level up, travel to new regions via the Map tab. Higher regions have tougher enemies but bigger XP and gold rewards.",hint:"Tip: Night time gives +50% XP but enemies hit harder."},
+  {icon:"💀",title:"Combat",desc:"Each turn: Attack, use your class Ability, use Items, or Flee. Mana regenerates each turn. Build combo streaks for bonus damage. Kill streaks give XP bonuses!",hint:"Tip: Your class Ability is powerful — use it when mana allows."},
+  {icon:"🎒",title:"Inventory & Skills",desc:"Bag tab shows your items, skills, crafting and spells. Equip weapons/armor. Spend Skill Points (SP) earned each level. Craft new items from materials.",hint:"Tip: Upgrade gear with Upgrade Stones and Dragon Cores."},
+  {icon:"🏰",title:"Dungeons & Quests",desc:"Enter Dungeons for structured combat gauntlets with big gold rewards. Complete Quests for gold. Grind kills and levels to unlock new regions and achievements.",hint:"Tip: Complete quests — they give huge gold rewards!"},
+];
+
+var SAVE_VERSION=8;
+function slotKey(sl){return"eth_v8_s"+sl;}
+function readSlotMeta(sl){try{var r=localStorage.getItem(slotKey(sl));if(!r)return null;var d=JSON.parse(r);if(!d||!d.me)return null;return{name:d.me.name,cls:d.me.cls,level:d.me.level,kills:d.me.kills||0,slot:sl,time:d.savedAt||""};}catch(e){return null;}}
+function saveToSlot(sl,data){try{localStorage.setItem(slotKey(sl),JSON.stringify({...data,savedAt:new Date().toLocaleString()}));}catch(e){}}
+function loadFromSlot(sl){try{var r=localStorage.getItem(slotKey(sl));if(!r)return null;return JSON.parse(r);}catch(e){return null;}}
+function deleteSlot(sl){try{localStorage.removeItem(slotKey(sl));}catch(e){}}

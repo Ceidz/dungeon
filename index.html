@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#050402" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Realm of Etherion v6</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>%E2%9A%94%EF%B8%8F</text></svg>" />
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+
+  <!-- React + ReactDOM (bundled) -->
+  <script src="vendor.js"></script>
+
+  <style>
+    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+    html,body{margin:0;padding:0;background:#050402;overscroll-behavior:none;position:fixed;width:100%;height:100%;}
+    #root{width:100%;height:100%;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+    #loading{position:fixed;inset:0;background:#050402;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;z-index:99999;color:#e8aa44;font-family:Georgia,serif;font-size:16px;letter-spacing:3px;transition:opacity 0.4s ease;}
+    #loading .spinner{width:40px;height:40px;border:3px solid #2a1e0a;border-top-color:#e8aa44;border-radius:50%;animation:spin 1s linear infinite;}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    #loading.fade-out{opacity:0;pointer-events:none;}
+  </style>
+</head>
+<body>
+  <div id="loading"><div class="spinner"></div><div>ETHERION v7</div></div>
+  <div id="root"></div>
+
+  <!-- Load order matters: config → firebase → constants → utils → app -->
+  <script src="config.js"></script>
+  <script src="firebase.js"></script>
+  <script src="constants.js"></script>
+  <script src="utils.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
