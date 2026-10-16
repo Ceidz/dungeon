@@ -8,7 +8,6 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Realm of Etherion v6</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>%E2%9A%94%EF%B8%8F</text></svg>" />
-  <!-- Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
@@ -32,15 +31,6 @@ var __REACT_DEVTOOLS_GLOBAL_HOOK__ = { checkDCE: function(){}, isDisabled: true 
 
 var __REACT__ = (function(){
   var module={exports:{}};var exports=module.exports;
-  /**
- * @license React
- * react.production.js
- *
- * Copyright (c) Meta Platforms, Inc. and affiliates.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
- */
 
 "use strict";
 var REACT_ELEMENT_TYPE = Symbol.for("react.transitional.element"),
@@ -579,18 +569,8 @@ exports.version = "19.2.4";
 })();
 window.React = __REACT__;
 
-// ---- Scheduler ----
 var __SCHEDULER__ = (function(){
   var module={exports:{}};var exports=module.exports;
-  /**
- * @license React
- * scheduler.production.js
- *
- * Copyright (c) Meta Platforms, Inc. and affiliates.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
- */
 
 "use strict";
 function push(heap, node) {
@@ -926,18 +906,8 @@ exports.unstable_wrapCallback = function (callback) {
   return module.exports;
 })();
 
-// ---- ReactDOM base ----
 var __REACTDOM_BASE__ = (function(){
   var module={exports:{}};var exports=module.exports;
-  /**
- * @license React
- * react-dom.production.js
- *
- * Copyright (c) Meta Platforms, Inc. and affiliates.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
- */
 
 "use strict";
 var React = __REACT__;
@@ -1143,22 +1113,9 @@ exports.version = "19.2.4";
   return module.exports;
 })();
 
-// ---- ReactDOM client (createRoot) ----
 var __REACTDOM_CLIENT__ = (function(){
   var module={exports:{}};var exports=module.exports;
-  /**
- * @license React
- * react-dom-client.production.js
- *
- * Copyright (c) Meta Platforms, Inc. and affiliates.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
- */
 
-/*
- Modernizr 3.0.0pre (Custom Build) | MIT
-*/
 "use strict";
 var Scheduler = __SCHEDULER__,
   React = __REACT__,
@@ -19445,7 +19402,6 @@ function GMGame(){
               )
             )
 
-            /* INVENTORY VIEW */
             , gameView==="inventory"&&me&&(
               React.createElement('div', { style: {flex:1,display:"flex",flexDirection:"column",overflow:"hidden"},}
                 , React.createElement('div', { style: {display:"flex",borderBottom:"1px solid #2a1e0a",flexShrink:0},}
@@ -19654,10 +19610,8 @@ function GMGame(){
               )
             )
 
-            /* LEADERBOARD VIEW */
             , gameView==="board"&&(
               (() => {
-                // Merge real Firebase players with NPC fallback
                 var fbPlayers=Object.entries(onlinePlayers).map(([pid,p])=>({name:p.name,cls:p.cls,level:p.level,kills:p.kills||0,gold:p.gold||0,isYou:pid===myPlayerId,online:p.online}));
                 var allPlayers= fbPlayers.length>0
                   ? fbPlayers
@@ -19702,7 +19656,6 @@ function GMGame(){
               );
             })())
 
-            /* Game Log */
             , React.createElement('div', { ref: gameLogRef, style: {height:110,overflowY:"auto",borderTop:"1px solid rgba(255,255,255,0.05)",padding:"8px 14px",background:"rgba(4,5,8,0.6)",flexShrink:0},}
               , gameLog.map((entry,i)=>{
                 var colors={system:"#44cc88",gold:"#d4a840",combat:"#e08844",warn:"#ff6644",story:"#8a7870",npc:"#5a8090",xp:"#9966ff",info:"#4a4840"};
@@ -19712,20 +19665,16 @@ function GMGame(){
           )
         )
 
-        /* ── GM PANEL (Rebuilt) ─────────────────────────── */
         , myUid===GM_UID&&React.createElement('div', {style:{position:"fixed",bottom:16,right:16,zIndex:8000}},
-          /* Toggle button */
           React.createElement(Btn, {
             onClick:()=>{setIsGMMode(v=>!v);setGmOpen(v=>!v);},
             style:{background:isGMMode?"#0d1117":"rgba(61,214,140,0.08)",border:"2px solid "+(isGMMode?"#3dd68c":"#3dd68c44"),color:isGMMode?"#3dd68c":"#3dd68c88",borderRadius:8,padding:"10px 14px",fontSize:13,fontFamily:"monospace",fontWeight:"bold",display:"flex",alignItems:"center",gap:8,boxShadow:isGMMode?"0 0 20px #3dd68c44":"none"}
           }, "◈", React.createElement('span',{style:{fontSize:10,letterSpacing:2}}, isGMMode?"GM ON":"GM"))
         )
-        /* GM sliding panel */
         , isGMMode&&gmOpen&&(
           React.createElement('div', {
             style:{position:"fixed",top:0,right:0,bottom:0,width:"min(100vw,420px)",background:"#07090d",borderLeft:"2px solid #1a2535",zIndex:7900,display:"flex",flexDirection:"column",overflowY:"hidden",boxShadow:"-4px 0 24px rgba(0,0,0,0.8)"}
           },
-            /* Header */
             React.createElement('div', {style:{background:"#0d1117",borderBottom:"1px solid #1a2535",padding:"14px 16px",flexShrink:0}},
               React.createElement('div', {style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}},
                 React.createElement('div', {style:{display:"flex",alignItems:"center",gap:10}},
@@ -19747,18 +19696,14 @@ function GMGame(){
                   "⚔️ "+region+" · "+Object.keys(onlinePlayers).filter(k=>onlinePlayers[k].online).length+" online · "+(_fbEnabled?"🟢 Firebase":"🟡 Offline"))
               )
             ),
-            /* Tab bar */
             React.createElement('div', {style:{display:"flex",borderBottom:"1px solid #1a2535",flexShrink:0,overflowX:"auto"}},
               [["world","🌍 World"],["player","👤 Player"],["spawn","⚔️ Spawn"],["comms","📢 Comms"],["shop","🛍️ Shop"],["create","✦ Create"]].map(([v,label])=>(
                 React.createElement(Btn, {key:v,onClick:()=>setGmTab(v),style:{flex:"0 0 auto",padding:"10px 12px",background:gmTab===v?"rgba(61,214,140,0.1)":"none",border:"none",borderBottom:gmTab===v?"2px solid #3dd68c":"2px solid transparent",color:gmTab===v?"#3dd68c":"#3a5068",fontSize:11,fontFamily:"monospace",whiteSpace:"nowrap"}}, label)
               ))
             ),
-            /* Tab content */
             React.createElement('div', {style:{flex:1,overflowY:"auto",padding:16,fontSize:12,color:"#b8cfe0"}},
 
-              /* ── WORLD TAB ── */
               gmTab==="world"&&React.createElement('div', {style:{display:"flex",flexDirection:"column",gap:14}},
-                /* Quick actions */
                 React.createElement('div', null,
                   React.createElement('div', {style:{fontSize:10,color:"#3a5068",letterSpacing:2,marginBottom:8}}, "⚡ QUICK ACTIONS"),
                   React.createElement('div', {style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}},
@@ -19768,7 +19713,6 @@ function GMGame(){
                     React.createElement(Btn, {onClick:()=>setPvpEnabled(v=>{fbBroadcastWorld({pvpEnabled:!v});return !v;}),style:{background:pvpEnabled?"rgba(255,50,50,0.1)":"rgba(0,0,0,0.2)",border:"1px solid "+(pvpEnabled?"#ff3344":"#1a2535"),color:pvpEnabled?"#ff3344":"#3a5068",padding:"12px 8px",borderRadius:6,fontSize:12,fontFamily:"monospace"}}, "⚔️ PvP "+(pvpEnabled?"ON":"OFF"))
                   )
                 ),
-                /* World events */
                 React.createElement('div', null,
                   React.createElement('div', {style:{fontSize:10,color:"#3a5068",letterSpacing:2,marginBottom:8}}, "🌍 WORLD EVENTS"),
                   React.createElement('div', {style:{display:"flex",flexDirection:"column",gap:6}},
@@ -19788,7 +19732,6 @@ function GMGame(){
                     })
                   )
                 ),
-                /* Weather */
                 React.createElement('div', null,
                   React.createElement('div', {style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}},
                     React.createElement('div', {style:{fontSize:10,color:"#3a5068",letterSpacing:2}}, "🌤 WEATHER"),
@@ -19801,7 +19744,6 @@ function GMGame(){
                     ))
                   )
                 ),
-                /* Region lockdown */
                 React.createElement('div', null,
                   React.createElement('div', {style:{fontSize:10,color:"#3a5068",letterSpacing:2,marginBottom:8}}, "🔒 REGION LOCKS"),
                   React.createElement('div', {style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}},
@@ -19814,7 +19756,6 @@ function GMGame(){
                     })
                   )
                 ),
-                /* Multipliers */
                 React.createElement('div', null,
                   React.createElement('div', {style:{fontSize:10,color:"#3a5068",letterSpacing:2,marginBottom:8}}, "✨ MULTIPLIERS"),
                   React.createElement('div', {style:{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6,marginBottom:8}},
@@ -19824,16 +19765,13 @@ function GMGame(){
                     [1,2,5].map(m=>React.createElement(Btn, {key:"g"+m,onClick:()=>{setGoldMult(m);fbBroadcastWorld({goldMult:m});},style:{background:goldMult===m?"rgba(255,215,0,0.1)":"rgba(0,0,0,0.2)",border:"1px solid "+(goldMult===m?"#ffd700":"#1a2535"),color:goldMult===m?"#ffd700":"#3a5068",padding:"8px",borderRadius:4,fontSize:11,fontFamily:"monospace"}}, "Gold×"+m))
                   )
                 ),
-                /* Spawn rate */
                 React.createElement('div', null,
                   React.createElement('div', {style:{fontSize:10,color:"#3a5068",marginBottom:6}}, "👾 Spawn Rate: "+spawnRate+"%"),
                   React.createElement('input', {type:"range",min:0,max:100,value:spawnRate,onChange:e=>setSpawnRate(+e.target.value),style:{width:"100%",accentColor:"#3dd68c"}})
                 )
               ),
 
-              /* ── PLAYER TAB ── */
               gmTab==="player"&&React.createElement('div', {style:{display:"flex",flexDirection:"column",gap:14}},
-                /* Online players */
                 Object.keys(onlinePlayers).length>0&&React.createElement('div', null,
                   React.createElement('div', {style:{fontSize:10,color:"#3a5068",letterSpacing:2,marginBottom:8}}, "👥 ONLINE PLAYERS ("+Object.keys(onlinePlayers).length+")"),
                   React.createElement('div', {style:{display:"flex",flexDirection:"column",gap:6}},
@@ -19858,7 +19796,6 @@ function GMGame(){
                     ))
                   )
                 ),
-                /* Stat editor */
                 React.createElement('div', null,
                   React.createElement('div', {style:{fontSize:10,color:"#3a5068",letterSpacing:2,marginBottom:8}}, "⚙️ APPLY STATS TO ALL PLAYERS"),
                   React.createElement('div', {style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}},
@@ -19871,7 +19808,6 @@ function GMGame(){
                   ),
                   React.createElement(Btn, {onClick:gmApplyStats,style:{width:"100%",marginTop:10,background:"rgba(61,214,140,0.1)",border:"1px solid #3dd68c",color:"#3dd68c",padding:"12px",borderRadius:6,fontSize:13,fontFamily:"monospace"}}, "⚡ APPLY TO ALL PLAYERS")
                 ),
-                /* Teleport all */
                 React.createElement('div', null,
                   React.createElement('div', {style:{fontSize:10,color:"#3a5068",letterSpacing:2,marginBottom:8}}, "🌀 TELEPORT ALL TO REGION"),
                   React.createElement('div', {style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}},
@@ -19882,7 +19818,6 @@ function GMGame(){
                 )
               ),
 
-              /* ── SPAWN TAB ── */
               gmTab==="spawn"&&React.createElement('div', {style:{display:"flex",flexDirection:"column",gap:14}},
                 React.createElement('div', null,
                   React.createElement('div', {style:{fontSize:10,color:"#3a5068",letterSpacing:2,marginBottom:8}}, "👾 SPAWN MOB"+(gameView==="combat"?" — ⚠ In Combat":"")),
@@ -19898,7 +19833,6 @@ function GMGame(){
                     ))
                   )
                 ),
-                /* NPC puppets */
                 React.createElement('div', null,
                   React.createElement('div', {style:{fontSize:10,color:"#3a5068",letterSpacing:2,marginBottom:8}}, "🎭 NPC PUPPETS"),
                   React.createElement('div', {style:{display:"flex",flexDirection:"column",gap:6}},
@@ -19915,9 +19849,7 @@ function GMGame(){
                 )
               ),
 
-              /* ── COMMS TAB ── */
               gmTab==="comms"&&React.createElement('div', {style:{display:"flex",flexDirection:"column",gap:14}},
-                /* Announce */
                 React.createElement('div', null,
                   React.createElement('div', {style:{fontSize:10,color:"#3a5068",letterSpacing:2,marginBottom:8}}, "📢 SERVER ANNOUNCEMENT"),
                   React.createElement('div', {style:{display:"flex",gap:6,marginBottom:8}},
@@ -19930,7 +19862,6 @@ function GMGame(){
                   ),
                   React.createElement(Btn, {onClick:gmSendAnnounce,style:{width:"100%",background:"rgba(255,215,0,0.08)",border:"1px solid #ffd700",color:"#ffd700",padding:"12px",borderRadius:6,fontSize:13,fontFamily:"monospace"}}, "📢 BROADCAST TO ALL")
                 ),
-                /* Whisper */
                 React.createElement('div', null,
                   React.createElement('div', {style:{fontSize:10,color:"#3a5068",letterSpacing:2,marginBottom:8}}, "📨 WHISPER"),
                   React.createElement('input', {value:gmWhisperForm.text,placeholder:"Private message…",onChange:e=>setGmWhisperForm(p=>({...p,text:e.target.value})),onKeyDown:e=>{if(e.key==="Enter")gmSendWhisper();},style:{...inp(),width:"100%",boxSizing:"border-box",fontSize:13,padding:"10px 12px",marginBottom:8}}),
@@ -19940,7 +19871,6 @@ function GMGame(){
                   ),
                   React.createElement(Btn, {onClick:gmSendWhisper,style:{width:"100%",background:"rgba(170,136,255,0.08)",border:"1px solid #aa88ff",color:"#aa88ff",padding:"12px",borderRadius:6,fontSize:13,fontFamily:"monospace"}}, "📨 SEND WHISPER TO ALL")
                 ),
-                /* Bounties */
                 React.createElement('div', null,
                   React.createElement('div', {style:{fontSize:10,color:"#3a5068",letterSpacing:2,marginBottom:8}}, "🎯 BOUNTIES"),
                   React.createElement('div', {style:{display:"flex",flexDirection:"column",gap:6,marginBottom:8}},
@@ -19973,8 +19903,6 @@ function GMGame(){
                   )
                 )
               ),
-
-              /* ── SHOP TAB ── */
               gmTab==="shop"&&React.createElement('div', {style:{display:"flex",flexDirection:"column",gap:14}},
                 React.createElement('div', null,
                   React.createElement('div', {style:{fontSize:10,color:"#3a5068",letterSpacing:2,marginBottom:8}}, "🛍️ SHOP MODS"),
@@ -20016,10 +19944,7 @@ function GMGame(){
                   )
                 )
               ),
-
-              /* ── CREATE TAB ── */
               gmTab==="create"&&React.createElement('div', {style:{display:"flex",flexDirection:"column",gap:14}},
-                /* Custom item */
                 React.createElement('div', null,
                   React.createElement('div', {style:{fontSize:10,color:"#3a5068",letterSpacing:2,marginBottom:8}}, "✦ CREATE CUSTOM ITEM"),
                   React.createElement('div', {style:{display:"flex",flexDirection:"column",gap:8}},
@@ -20068,7 +19993,6 @@ function GMGame(){
                     )
                   )
                 ),
-                /* Custom event */
                 React.createElement('div', null,
                   React.createElement('div', {style:{fontSize:10,color:"#3a5068",letterSpacing:2,marginBottom:8}}, "🌟 CREATE CUSTOM EVENT"),
                   React.createElement('div', {style:{display:"flex",flexDirection:"column",gap:8}},
@@ -20104,7 +20028,6 @@ function GMGame(){
                     React.createElement(Btn, {onClick:()=>{gmCreateCustomEvent();gmLog("Custom event launched","system");},style:{width:"100%",background:"rgba(61,214,140,0.08)",border:"1px solid #3dd68c",color:"#3dd68c",padding:"12px",borderRadius:6,fontSize:13,fontFamily:"monospace"}}, "🌟 CREATE & LAUNCH EVENT")
                   )
                 ),
-                /* Custom items list */
                 Object.keys(gmCustomItems).length>0&&React.createElement('div', null,
                   React.createElement('div', {style:{fontSize:9,color:"#3a5068",letterSpacing:2,marginBottom:6}}, "CUSTOM ITEMS"),
                   Object.entries(gmCustomItems).map(([name,item])=>(
@@ -20117,7 +20040,6 @@ function GMGame(){
               )
 
             ),
-            /* GM log */
             React.createElement('div', {ref:gmLogRef,style:{height:90,overflowY:"auto",borderTop:"1px solid #1a2535",padding:"6px 12px",background:"rgba(0,0,0,0.6)",flexShrink:0}},
               gmLogs.map((entry,i)=>{
                 var colors={system:"#3dd68c",warn:"#ffaa00",info:"#3a5068"};
