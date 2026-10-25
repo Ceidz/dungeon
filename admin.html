@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#07080c">
+<meta name="robots" content="noindex,nofollow">
+<title>Etherion Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<style>
+:root{--bg:#07080c;--panel:#10121a;--panel2:#161926;--line:rgba(255,255,255,.08);--line2:rgba(255,255,255,.14);--text:#d6cfc0;--dim:#7d8596;--gold:#c8a96e;--gold2:#e8c87a;--red:#e05555;--green:#44cc88;--blue:#5a9bff;--amber:#e8aa44;--sat:env(safe-area-inset-top,0px);--sab:env(safe-area-inset-bottom,0px)}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:radial-gradient(900px 520px at 12% -6%,rgba(200,169,110,.08),transparent 60%),radial-gradient(800px 520px at 100% 0,rgba(96,64,210,.08),transparent 60%),var(--bg);color:var(--text);font:14px/1.5 Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;touch-action:manipulation}
+[hidden]{display:none!important}
+::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:3px}
+.serif{font-family:Cinzel,Georgia,serif}
+.login{min-height:100%;display:flex;align-items:center;justify-content:center;padding:24px}
+.login-card{width:100%;max-width:380px;background:var(--panel);border:1px solid var(--line2);border-radius:16px;padding:30px 26px;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.login-card h1{font-size:22px;color:var(--gold);letter-spacing:3px;text-align:center}
+.login-card p.sub{text-align:center;color:var(--dim);font-size:11px;letter-spacing:3px;margin:4px 0 24px}
+label.f{display:block;font-size:11px;letter-spacing:1.5px;color:var(--dim);margin:0 0 6px;text-transform:uppercase}
+.in,select.in,textarea.in{width:100%;background:rgba(0,0,0,.35);border:1px solid var(--line2);border-radius:10px;padding:11px 13px;outline:none;transition:border-color .15s,box-shadow .15s}
+.in:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(200,169,110,.14)}
+textarea.in{resize:vertical;min-height:90px}
+.field{margin-bottom:14px}
+.pw{position:relative}.pw .in{padding-right:46px}
+.pw button{position:absolute;right:5px;top:50%;transform:translateY(-50%);width:36px;height:36px;background:none;border:none;color:var(--dim);display:flex;align-items:center;justify-content:center;border-radius:8px}
+.pw button:hover{color:var(--gold2)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;background:var(--panel2);border:1px solid var(--line2);color:var(--text);padding:9px 16px;border-radius:10px;font-weight:600;font-size:13px;transition:background .15s,border-color .15s,transform .1s}
+.btn:hover{border-color:var(--gold);background:#1b1f2f}
+.btn:active{transform:scale(.97)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.pri{background:linear-gradient(135deg,rgba(200,169,110,.28),rgba(200,169,110,.1));border-color:rgba(200,169,110,.6);color:var(--gold2)}
+.btn.danger{border-color:rgba(224,85,85,.5);color:#ff8a8a;background:rgba(224,85,85,.08)}
+.btn.danger:hover{background:rgba(224,85,85,.16);border-color:var(--red)}
+.btn.sm{padding:6px 11px;font-size:12px;border-radius:8px}
+.btn.block{width:100%;padding:12px}
+.err{background:rgba(224,85,85,.08);border:1px solid rgba(224,85,85,.35);color:#ff8a8a;border-radius:10px;padding:10px 12px;font-size:13px;margin-bottom:14px}
+.spin{width:14px;height:14px;border:2px solid rgba(200,169,110,.3);border-top-color:var(--gold);border-radius:50%;animation:sp .7s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+#app{display:flex;height:100%}
+.side{width:236px;flex:none;background:rgba(12,14,22,.9);border-right:1px solid var(--line);display:flex;flex-direction:column;padding:20px 14px;padding-top:calc(20px + var(--sat))}
+.brand{padding:0 8px 22px}
+.brand b{display:block;font-family:Cinzel,serif;color:var(--gold);font-size:17px;letter-spacing:2px}
+.brand span{font-size:10px;letter-spacing:3px;color:var(--dim)}
+.nav{display:flex;flex-direction:column;gap:4px;flex:1}
+.nav button{display:flex;align-items:center;gap:12px;background:none;border:none;color:var(--dim);padding:11px 12px;border-radius:10px;font-weight:500;text-align:left;position:relative;transition:background .15s,color .15s}
+.nav button:hover{background:rgba(255,255,255,.04);color:var(--text)}
+.nav button.on{background:linear-gradient(90deg,rgba(200,169,110,.18),rgba(200,169,110,.04));color:var(--gold2)}
+.nav button.on::before{content:"";position:absolute;left:0;top:9px;bottom:9px;width:3px;border-radius:2px;background:var(--gold)}
+.nav svg{width:18px;height:18px;flex:none}
+.nav .bd{margin-left:auto;background:rgba(224,85,85,.2);color:#ff8a8a;font-size:10px;padding:1px 7px;border-radius:99px}
+.who{border-top:1px solid var(--line);padding:14px 8px 0;font-size:12px;color:var(--dim)}
+.who div{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:10px}
+main{flex:1;min-width:0;overflow-y:auto;padding:26px 30px 40px;padding-top:calc(26px + var(--sat))}
+.head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:20px}
+.head h2{font-family:Cinzel,serif;font-size:22px;color:var(--gold2);letter-spacing:1px}
+.head p{color:var(--dim);font-size:13px}
+.grid{display:grid;gap:14px}
+.g4{grid-template-columns:repeat(4,minmax(0,1fr))}.g3{grid-template-columns:repeat(3,minmax(0,1fr))}.g2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px}
+.card h3{font-size:11px;letter-spacing:2px;color:var(--dim);text-transform:uppercase;margin-bottom:12px;font-weight:600}
+.stat .v{font-size:28px;font-weight:700;color:var(--gold2);line-height:1.1;font-variant-numeric:tabular-nums}
+.stat .l{font-size:11px;letter-spacing:1.5px;color:var(--dim);text-transform:uppercase;margin-top:6px}
+.stat.live .v{color:var(--green)}
+.bar-row{display:flex;align-items:center;gap:10px;margin:8px 0;font-size:12px}
+.bar-row .n{width:92px;flex:none;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar-row .t{flex:1;height:8px;background:rgba(255,255,255,.06);border-radius:4px;overflow:hidden}
+.bar-row .t i{display:block;height:100%;background:linear-gradient(90deg,var(--gold),var(--gold2));border-radius:4px;transition:width .4s}
+.bar-row .c{width:34px;text-align:right;color:var(--dim);font-variant-numeric:tabular-nums}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{padding:6px 12px;border-radius:99px;border:1px solid var(--line2);background:rgba(255,255,255,.03);font-size:12px;color:var(--dim)}
+.chip.on{border-color:var(--gold);color:var(--gold2);background:rgba(200,169,110,.12)}
+.chip.bad.on{border-color:var(--red);color:#ff8a8a;background:rgba(224,85,85,.12)}
+button.chip:hover{border-color:var(--gold)}
+.tools{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.tools .in{flex:1;min-width:160px}.tools select.in{flex:none;width:auto}
+.tw{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+table{width:100%;border-collapse:collapse}
+th{font-size:10px;letter-spacing:1.5px;color:var(--dim);text-transform:uppercase;text-align:left;padding:12px 14px;border-bottom:1px solid var(--line);font-weight:600}
+td{padding:11px 14px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+tr:last-child td{border-bottom:none}
+tbody tr.row{cursor:pointer;transition:background .12s}
+tbody tr.row:hover{background:rgba(255,255,255,.035)}
+td .nm{font-weight:600;color:var(--text)}td .sub{font-size:11px;color:var(--dim)}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:7px;background:#3a3f50}
+.dot.on{background:var(--green);box-shadow:0 0 8px rgba(68,204,136,.6)}
+.tag{display:inline-block;font-size:10px;letter-spacing:.5px;padding:2px 8px;border-radius:99px;margin-left:6px;border:1px solid var(--line2);color:var(--dim)}
+.tag.red{border-color:rgba(224,85,85,.5);color:#ff8a8a}.tag.amber{border-color:rgba(232,170,68,.5);color:var(--amber)}
+.empty{padding:36px;text-align:center;color:var(--dim)}
+.sw{position:relative;width:46px;height:26px;border-radius:99px;background:#2a2f3e;border:1px solid var(--line2);flex:none;transition:background .2s}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:#aab;transition:transform .2s,background .2s}
+.sw.on{background:rgba(200,169,110,.35);border-color:var(--gold)}.sw.on::after{transform:translateX(20px);background:var(--gold2)}
+.rowline{display:flex;align-items:center;justify-content:space-between;gap:14px}
+.wgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.ev{padding:12px;border-radius:12px;border:1px solid var(--line2);background:rgba(255,255,255,.03);text-align:left;transition:border-color .15s,background .15s}
+.ev b{display:block;font-size:13px}.ev span{font-size:11px;color:var(--dim)}
+.ev.on{border-color:var(--gold);background:rgba(200,169,110,.1)}.ev.on span{color:var(--gold2)}
+.range{display:flex;align-items:center;gap:12px}
+.range input[type=range]{flex:1;accent-color:var(--gold)}
+.range output{min-width:46px;text-align:right;font-weight:700;color:var(--gold2)}
+.hist{display:flex;flex-direction:column;gap:8px}
+.hi{display:flex;gap:12px;align-items:flex-start;justify-content:space-between;padding:12px;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.02)}
+.hi .m{flex:1;min-width:0;overflow-wrap:anywhere}.hi small{color:var(--dim);display:block;margin-top:2px}
+.drawer{position:fixed;inset:0;z-index:50;display:flex;justify-content:flex-end;background:rgba(0,0,0,.55);backdrop-filter:blur(3px);animation:fd .15s}
+.dp{width:min(520px,100%);height:100%;background:var(--panel);border-left:1px solid var(--line2);overflow-y:auto;padding:22px;padding-top:calc(22px + var(--sat));padding-bottom:calc(22px + var(--sab));animation:sl .2s ease}
+@keyframes fd{from{opacity:0}}@keyframes sl{from{transform:translateX(30px);opacity:.5}}
+.dp h3.t{font-family:Cinzel,serif;font-size:20px;color:var(--gold2)}
+.dp .sec{margin-top:22px}.dp .sec>h4{font-size:11px;letter-spacing:2px;color:var(--dim);text-transform:uppercase;margin-bottom:10px;font-weight:600}
+.kv{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.kv div{background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:10px;padding:9px 12px}
+.kv small{display:block;font-size:10px;letter-spacing:1.2px;color:var(--dim);text-transform:uppercase}
+.slotc{border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:8px;background:rgba(255,255,255,.02);font-size:12px;color:var(--dim)}
+.slotc b{color:var(--text);font-size:13px}
+.frm{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.xbtn{background:none;border:none;color:inherit;margin-left:6px;opacity:.7;font-size:14px;line-height:1}
+#toast{position:fixed;left:50%;bottom:calc(24px + var(--sab));transform:translateX(-50%);z-index:100;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none}
+.tt{background:#1b1f2f;border:1px solid var(--line2);border-left:3px solid var(--gold);padding:10px 16px;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.5);animation:fd .2s}
+.tt.bad{border-left-color:var(--red)}.tt.ok{border-left-color:var(--green)}
+@media (max-width:1100px){.g4{grid-template-columns:repeat(2,minmax(0,1fr))}.g3{grid-template-columns:1fr}}
+@media (max-width:860px){
+#app{flex-direction:column}
+.side{width:100%;flex-direction:row;order:2;padding:6px 8px calc(6px + var(--sab));border-right:none;border-top:1px solid var(--line2);background:rgba(10,12,18,.96)}
+.brand,.who{display:none}
+.nav{flex-direction:row;gap:2px;justify-content:space-between}
+.nav button{flex:1;flex-direction:column;gap:3px;padding:8px 2px;font-size:10px;justify-content:center;align-items:center;text-align:center}
+.nav button.on::before{left:25%;right:25%;top:0;bottom:auto;width:auto;height:3px}
+.nav .bd{position:absolute;top:2px;right:8px;margin:0}
+main{padding:18px 14px 24px;padding-top:calc(18px + var(--sat))}
+.g2{grid-template-columns:1fr}
+.head h2{font-size:19px}
+}
+@media (max-width:700px){
+thead{display:none}
+table,tbody,tr,td{display:block;width:100%}
+tr.row{padding:12px 14px;border-bottom:1px solid var(--line);display:grid;grid-template-columns:1fr auto;gap:2px 10px}
+tr.row td{border:none;padding:0}
+tr.row td.main{grid-column:1}tr.row td.stt{grid-column:2;grid-row:1;text-align:right;font-size:12px;color:var(--dim)}
+tr.row td.ln{grid-column:1/-1;display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--dim)}
+.frm{grid-template-columns:1fr}
+.g4{grid-template-columns:repeat(2,minmax(0,1fr))}
+.stat .v{font-size:24px}
+}
+</style>
+</head>
+<body>
+<div id="login" class="login" hidden>
+  <form class="login-card" id="lf" novalidate>
+    <h1 class="serif">ETHERION</h1>
+    <p class="sub">ADMIN CONSOLE</p>
+    <div class="err" id="lerr" hidden></div>
+    <div class="field"><label class="f" for="em">Email</label><input class="in" id="em" type="email" autocomplete="username" inputmode="email" autocapitalize="none" placeholder="admin@email.com"></div>
+    <div class="field"><label class="f" for="pw">Password</label><div class="pw"><input class="in" id="pw" type="password" autocomplete="current-password" placeholder="Password"><button type="button" id="pwt" aria-label="Show password"></button></div></div>
+    <button class="btn pri block" id="lb" type="submit">Sign in</button>
+  </form>
+</div>
+
+<div id="app" hidden>
+  <aside class="side">
+    <div class="brand"><b>ETHERION</b><span>ADMIN CONSOLE</span></div>
+    <nav class="nav" id="nav"></nav>
+    <div class="who"><div id="whoem"></div><button class="btn sm block" id="out">Sign out</button></div>
+  </aside>
+  <main id="main">
+    <section id="v-overview"></section>
+    <section id="v-players" hidden></section>
+    <section id="v-world" hidden></section>
+    <section id="v-announce" hidden></section>
+    <section id="v-chat" hidden></section>
+    <section id="v-logs" hidden></section>
+  </main>
+</div>
+<div id="drawer" class="drawer" hidden></div>
+<div id="toast"></div>
+
+<script>
+const CFG={apiKey:"AIzaSyA3lxW3mTt7eva9CmV4orWfaD1nnSeFIx0",authDomain:"dungeon-af141.firebaseapp.com",databaseURL:"https://dungeon-af141-default-rtdb.asia-southeast1.firebasedatabase.app/",projectId:"dungeon-af141",storageBucket:"dungeon-af141.firebasestorage.app",messagingSenderId:"585951047400",appId:"1:585951047400:web:a7f9ad9458e5d5f245635d"};
+firebase.initializeApp(CFG);
+const auth=firebase.auth(),db=firebase.database();
+const REGIONS=["Starter Isle","Darkwood","Ironpeak","Crystalveil","Frostholm","Shadowmere","Sunken City","Dragon's Peak","Celestial Spire","The Abyss","Ember Wastes","Void Rift"];
+const WEATHER=["clear","rain","storm","snow","fog","blood"];
+const EVENTS=[["raid","Dragon Raid","Elder Dragon boss"],["invasion","Demon Invasion","Demon Lord boss"],["meteor","Meteor Storm","Meteor Elemental boss"],["festival","XP Festival","Bonus XP"],["goldrush","Gold Rush","Bonus gold"],["war","Faction War","PvP on sight"],["eclipse","Blood Eclipse","Empowered monsters"]];
+const ITEMS=["Rename Card","Health Potion", "Mana Elixir", "Antidote", "Super Potion", "Elixir of Gods", "Rage Potion", "Haste Draft", "Poison Flask", "Blinding Dust", "Weakness Brew", "Frost Shard", "Thunder Brew", "Iron Sword", "Staff of Embers", "Steel Sword", "Steel Staff", "Mythic Blade", "Mythic Staff", "Dragon Sword", "Mage Staff", "Shadow Cloak", "Dragon Scale", "Steel Cloak", "Steelweave Scale", "Mythic Cloak", "Mythic Plate", "Void Armor", "Upgrade Stone", "Dragon Core", "Ember Flask", "Void Shard", "Phoenix Feather", "Mana Crystal", "Berserker Brew", "Void Blade", "Void Staff", "Ember Scale", "Rift Cloak", "Spell Tome", "Blood Vial", "Mana Potion", "War Banner", "Cursed Rune", "Life Crystal", "Iron Shield", "Titan Axe", "Arcane Tome", "Berserker Plate", "Soul Gem"];
+const TIERS=[["Wanderer",0],["Squire",300],["Knight",800],["Champion",1600],["Hero",2700],["Archon",4000],["Mythic",5800],["Legend",8000]];
+const ICON={
+overview:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>',
+players:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.2-5.5 6.5-5.5s5.9 1.9 6.5 5.5"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.8c2 .6 3.2 2.3 3.5 5.2"/></svg>',
+world:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.6 3.9 5.6 3.9 9s-1.3 6.4-3.9 9c-2.6-2.6-3.9-5.6-3.9-9S9.4 5.6 12 3z"/></svg>',
+announce:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>',
+chat:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1.1-4.2A8 8 0 1 1 21 12z"/></svg>',
+logs:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="3.5" cy="6" r="1"/><circle cx="3.5" cy="12" r="1"/><circle cx="3.5" cy="18" r="1"/></svg>',
+eye:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>',
+eyeoff:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.6 5.1A10.9 10.9 0 0 1 12 5c6.5 0 10 7 10 7a17.6 17.6 0 0 1-3.2 4.2M6.6 6.6A17.4 17.4 0 0 0 2 12s3.5 7 10 7c1.9 0 3.6-.5 5-1.3"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2M3 3l18 18"/></svg>'};
+const VIEWS=[["overview","Overview"],["players","Players"],["world","World"],["announce","Announce"],["chat","Chat"],["logs","Audit log"]];
+const $=(s,r=document)=>r.querySelector(s);
+const esc=v=>String(v==null?"":v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const num=v=>Number(v||0).toLocaleString();
+const S={players:{},world:{},bans:{},hidden:{},hist:[],logs:[],chat:[],mutes:{},view:"overview",q:"",flt:"all",sort:"level",draftXp:null,draftGold:null,offs:[]};
+let uid=null,email="";
+
+function toast(m,k){const t=document.createElement("div");t.className="tt "+(k||"");t.textContent=m;$("#toast").appendChild(t);setTimeout(()=>t.remove(),3200);}
+function isOnline(p){return p.online!==false&&(!p.lastSeen||Date.now()-p.lastSeen<90000);}
+function rp(p){return Math.floor((p.level||1)*50+Math.sqrt(p.kills||0)*45+(p.dungeons||0)*80);}
+function tierOf(r){let t=TIERS[0][0];for(const [n,m] of TIERS)if(r>=m)t=n;return t;}
+function ago(ts){if(!ts)return"never";const s=Math.max(0,(Date.now()-ts)/1000);if(s<60)return"just now";if(s<3600)return Math.floor(s/60)+"m ago";if(s<86400)return Math.floor(s/3600)+"h ago";return Math.floor(s/86400)+"d ago";}
+function stamp(ts){const d=new Date(ts);return d.toLocaleDateString([],{month:"short",day:"numeric"})+" "+d.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});}
+function rid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6);}
+function log(action,target,detail){return db.ref("adminLogs").push({ts:Date.now(),by:email,action,target:target||"",detail:detail||""});}
+async function guard(fn,okMsg){try{await fn();if(okMsg)toast(okMsg,"ok");}catch(e){toast(e&&e.message?e.message:"Action failed","bad");}}
+function plist(){return Object.entries(S.players).filter(([,p])=>p&&p.name).map(([id,p])=>({id,...p,rp:rp(p),online:isOnline(p),banned:!!S.bans[id],hidden:!!S.hidden[id],muted:!!S.mutes[id]}));}
+
+let pwShow=false;
+function paintPw(){$("#pwt").innerHTML=pwShow?ICON.eyeoff:ICON.eye;$("#pw").type=pwShow?"text":"password";$("#pwt").setAttribute("aria-label",pwShow?"Hide password":"Show password");}
+$("#pwt").onclick=()=>{pwShow=!pwShow;paintPw();};paintPw();
+function lerr(m){const e=$("#lerr");e.textContent=m||"";e.hidden=!m;}
+function lbusy(b){const x=$("#lb");x.disabled=b;x.innerHTML=b?'<span class="spin"></span>Signing in':"Sign in";}
+$("#lf").onsubmit=e=>{
+  e.preventDefault();lerr("");
+  const em=$("#em").value.trim(),pw=$("#pw").value;
+  if(!em||!pw){lerr("Enter your email and password.");return;}
+  lbusy(true);
+  auth.signInWithEmailAndPassword(em,pw).catch(x=>{lbusy(false);lerr(/invalid|wrong|user-not-found/.test(x.code||"")?"Wrong email or password.":(x.message||"Sign in failed."));});
+};
+$("#out").onclick=()=>auth.signOut();
+
+auth.onAuthStateChanged(async u=>{
+  detach();
+  if(!u){uid=null;$("#app").hidden=true;$("#login").hidden=false;lbusy(false);return;}
+  let ok=false;
+  try{ok=(await db.ref("admins/"+u.uid).once("value")).val()===true;}catch(e){ok=false;}
+  if(!ok){await auth.signOut();lerr("This account is not an admin.");return;}
+  uid=u.uid;email=u.email||u.uid;
+  $("#whoem").textContent=email;$("#login").hidden=true;$("#app").hidden=false;
+  attach();buildNav();go(S.view);
+});
+
+function on(path,fn,q){const r=q?q(db.ref(path)):db.ref(path);const h=r.on("value",s=>fn(s.val()),e=>toast("Read denied: "+path,"bad"));S.offs.push(()=>r.off("value",h));}
+function detach(){S.offs.forEach(f=>f());S.offs=[];}
+function attach(){
+  on("global/players",v=>{S.players=v||{};refresh();});
+  on("global/world",v=>{S.world=v||{};S.draftXp=null;S.draftGold=null;refresh();});
+  on("bans",v=>{S.bans=v||{};refresh();});
+  on("global/hidden",v=>{S.hidden=v||{};refresh();});
+  on("announcements/history",v=>{S.hist=Object.entries(v||{}).map(([k,a])=>({k,...a})).sort((a,b)=>b.ts-a.ts);refresh();},r=>r.limitToLast(30));
+  on("mutes",v=>{S.mutes=v||{};refresh();});
+  on("chat/global",v=>{S.chat=Object.entries(v||{}).map(([k,m])=>({k,...m})).sort((a,b)=>b.ts-a.ts);refresh();},r=>r.limitToLast(100));
+  on("adminLogs",v=>{S.logs=Object.entries(v||{}).map(([k,a])=>({k,...a})).sort((a,b)=>b.ts-a.ts);refresh();},r=>r.limitToLast(150));
+}
+setInterval(()=>{if(uid)refresh();},15000);
+
+function buildNav(){
+  $("#nav").innerHTML=VIEWS.map(([k,l])=>`<button data-v="${k}">${ICON[k]}<span>${l}</span>${k==="players"?'<i class="bd" id="bdg" hidden></i>':""}</button>`).join("");
+  $("#nav").onclick=e=>{const b=e.target.closest("button");if(b)go(b.dataset.v);};
+}
+function go(v){
+  S.view=v;
+  VIEWS.forEach(([k])=>{$("#v-"+k).hidden=k!==v;});
+  document.querySelectorAll("#nav button").forEach(b=>b.classList.toggle("on",b.dataset.v===v));
+  $("#main").scrollTop=0;refresh(true);
+}
+function refresh(force){
+  const nb=Object.keys(S.bans).length,bd=$("#bdg");if(bd){bd.hidden=!nb;bd.textContent=nb;}
+  const v=S.view;
+  if(v==="overview")rOverview();
+  else if(v==="players")rPlayers(force);
+  else if(v==="world")rWorld(force);
+  else if(v==="announce")rAnnounce(force);
+  else if(v==="chat")rChat(force);
+  else if(v==="logs")rLogs(force);
+}
+
+function stat(l,v,c){return `<div class="card stat ${c||""}"><div class="v">${v}</div><div class="l">${l}</div></div>`;}
+function bars(rows,max){return rows.map(([n,c])=>`<div class="bar-row"><div class="n" title="${esc(n)}">${esc(n)}</div><div class="t"><i style="width:${max?Math.max(2,c/max*100):0}%"></i></div><div class="c">${c}</div></div>`).join("")||'<div class="empty">No data yet</div>';}
+
+function rOverview(){
+  const L=plist(),on=L.filter(p=>p.online).length;
+  const avg=L.length?Math.round(L.reduce((a,p)=>a+(p.level||1),0)/L.length):0;
+  const kills=L.reduce((a,p)=>a+(p.kills||0),0),gold=L.reduce((a,p)=>a+(p.gold||0),0);
+  const cls={};L.forEach(p=>{cls[p.cls||"?"]=(cls[p.cls||"?"]||0)+1;});
+  const cr=Object.entries(cls).sort((a,b)=>b[1]-a[1]);
+  const bk={};L.forEach(p=>{const b=Math.floor((p.level||1)/10)*10;const k=(b||1)+"-"+(b+9);bk[k]=(bk[k]||0)+1;});
+  const br=Object.entries(bk).sort((a,b)=>parseInt(a[0])-parseInt(b[0]));
+  const top=[...L].sort((a,b)=>b.rp-a.rp).slice(0,5);
+  const w=S.world,locks=w.lockedRegions?Object.values(w.lockedRegions):[],evs=w.activeEvents?Object.values(w.activeEvents):[];
+  $("#v-overview").innerHTML=`
+  <div class="head"><div><h2>Overview</h2><p>Live snapshot of the realm</p></div></div>
+  <div class="grid g4">${stat("Players",num(L.length))}${stat("Online now",num(on),"live")}${stat("Average level",avg)}${stat("Banned",num(Object.keys(S.bans).length))}</div>
+  <div class="grid g4" style="margin-top:14px">${stat("Total kills",num(kills))}${stat("Gold in circulation",num(gold))}${stat("Hidden from board",num(Object.keys(S.hidden).length))}${stat("Active events",evs.length)}</div>
+  <div class="grid g2" style="margin-top:14px">
+    <div class="card"><h3>Class distribution</h3>${bars(cr,cr.length?cr[0][1]:0)}</div>
+    <div class="card"><h3>Level distribution</h3>${bars(br,Math.max(0,...br.map(x=>x[1])))}</div>
+  </div>
+  <div class="grid g2" style="margin-top:14px">
+    <div class="card"><h3>Top players</h3>${top.map((p,i)=>`<div class="bar-row"><div class="n"><b>${i+1}.</b> ${esc(p.name)}</div><div class="t" style="background:none"></div><div class="c" style="width:auto">${tierOf(p.rp)} · ${num(p.rp)} RP</div></div>`).join("")||'<div class="empty">No players yet</div>'}</div>
+    <div class="card"><h3>World status</h3>
+      <div class="kv"><div><small>Weather</small>${esc(w.weather||"clear")}</div><div><small>PvP</small>${w.pvpEnabled?"Enabled":"Disabled"}</div><div><small>XP multiplier</small>x${w.xpMult||1}</div><div><small>Gold multiplier</small>x${w.goldMult||1}</div><div><small>Locked regions</small>${locks.length||"None"}</div><div><small>Events</small>${evs.length?evs.map(e=>esc(e)).join(", "):"None"}</div></div>
+    </div>
+  </div>
+  <div class="card" style="margin-top:14px"><h3>Recent admin actions</h3>${S.logs.slice(0,5).map(l=>`<div class="bar-row"><div class="n" style="width:110px;color:var(--dim)">${stamp(l.ts)}</div><div style="flex:1;min-width:0;overflow-wrap:anywhere"><b>${esc(l.action)}</b> ${esc(l.target)} <span style="color:var(--dim)">${esc(l.detail)}</span></div></div>`).join("")||'<div class="empty">Nothing yet</div>'}</div>`;
+}
+
+let pBuilt=false;
+function rPlayers(force){
+  const host=$("#v-players");
+  if(force||!pBuilt){
+    pBuilt=true;
+    host.innerHTML=`<div class="head"><div><h2>Players</h2><p id="pcount"></p></div></div>
+    <div class="tools"><input class="in" id="pq" type="search" placeholder="Search name, class or region" value="${esc(S.q)}">
+      <select class="in" id="pf"><option value="all">All</option><option value="online">Online</option><option value="banned">Banned</option><option value="hidden">Hidden</option></select>
+      <select class="in" id="ps"><option value="level">Sort: Level</option><option value="rp">Sort: Rank</option><option value="kills">Sort: Kills</option><option value="gold">Sort: Gold</option><option value="seen">Sort: Last seen</option><option value="name">Sort: Name</option></select></div>
+    <div class="tw"><table><thead><tr><th>Player</th><th>Level</th><th>Rank</th><th>Kills</th><th>Gold</th><th>Region</th><th>Status</th></tr></thead><tbody id="pb"></tbody></table></div>`;
+    $("#pf").value=S.flt;$("#ps").value=S.sort;
+    $("#pq").oninput=e=>{S.q=e.target.value;rPlayers();};
+    $("#pf").onchange=e=>{S.flt=e.target.value;rPlayers();};
+    $("#ps").onchange=e=>{S.sort=e.target.value;rPlayers();};
+    $("#pb").onclick=e=>{const r=e.target.closest("tr.row");if(r)openPlayer(r.dataset.id);};
+  }
+  let L=plist();const q=S.q.trim().toLowerCase();
+  if(q)L=L.filter(p=>(p.name||"").toLowerCase().includes(q)||(p.cls||"").toLowerCase().includes(q)||(p.region||"").toLowerCase().includes(q));
+  if(S.flt==="online")L=L.filter(p=>p.online);else if(S.flt==="banned")L=L.filter(p=>p.banned);else if(S.flt==="hidden")L=L.filter(p=>p.hidden);
+  const k=S.sort;
+  L.sort((a,b)=>k==="name"?String(a.name).localeCompare(String(b.name)):k==="seen"?(b.lastSeen||0)-(a.lastSeen||0):(b[k]||0)-(a[k]||0));
+  $("#pcount").textContent=L.length+" shown of "+Object.keys(S.players).length;
+  $("#pb").innerHTML=L.map(p=>`<tr class="row" data-id="${esc(p.id)}">
+    <td class="main" data-l="Player"><div class="nm">${esc(p.name)}${p.banned?'<span class="tag red">BANNED</span>':""}${p.hidden?'<span class="tag amber">HIDDEN</span>':""}${p.muted?'<span class="tag red">MUTED</span>':""}</div><div class="sub">${esc(p.cls||"")}</div></td>
+    <td class="ln" data-l="Level">Lv ${p.level||1}<span>${tierOf(p.rp)}</span><span>${num(p.kills)} kills</span><span>${num(p.gold)} gold</span><span>${esc(p.region||"-")}</span></td>
+    <td class="stt" data-l="Status"><span class="dot ${p.online?"on":""}"></span>${p.online?"Online":ago(p.lastSeen)}</td></tr>`).join("")||`<tr><td colspan="7" class="empty">No players match</td></tr>`;
+  if(window.innerWidth>700){
+    $("#pb").innerHTML=L.map(p=>`<tr class="row" data-id="${esc(p.id)}">
+    <td><div class="nm">${esc(p.name)}${p.banned?'<span class="tag red">BANNED</span>':""}${p.hidden?'<span class="tag amber">HIDDEN</span>':""}${p.muted?'<span class="tag red">MUTED</span>':""}</div><div class="sub">${esc(p.cls||"")}</div></td>
+    <td>${p.level||1}</td><td>${tierOf(p.rp)}<div class="sub">${num(p.rp)} RP</div></td><td>${num(p.kills)}</td><td>${num(p.gold)}</td><td>${esc(p.region||"-")}</td>
+    <td><span class="dot ${p.online?"on":""}"></span>${p.online?"Online":ago(p.lastSeen)}</td></tr>`).join("")||`<tr><td colspan="7" class="empty">No players match</td></tr>`;
+  }
+}
+
+async function openPlayer(id){
+  const p=S.players[id]||{};
+  const d=$("#drawer");d.hidden=false;
+  d.innerHTML=`<div class="dp"><div class="rowline"><h3 class="t">${esc(p.name||id)}</h3><button class="btn sm" id="dx">Close</button></div><div class="empty"><span class="spin" style="display:inline-block"></span></div></div>`;
+  d.onclick=e=>{if(e.target===d||e.target.id==="dx")closeDrawer();};
+  let u={};try{u=(await db.ref("users/"+id).once("value")).val()||{};}catch(e){toast("Could not load player data","bad");}
+  const slots=[];
+  Object.entries(u.saves||{}).forEach(([k,v])=>{if(v&&v.json&&!v.deleted){try{const j=JSON.parse(v.json);if(j.me)slots.push({k,ts:v.ts,me:j.me,region:j.region});}catch(e){}}});
+  slots.sort((a,b)=>b.ts-a.ts);
+  const cur=slots[0]&&slots[0].me,inv=cur?(cur.inventory||[]):[];
+  const cnt={};inv.forEach(i=>cnt[i]=(cnt[i]||0)+1);
+  const adds=[],rems=[];
+  const banned=S.bans[id],hid=S.hidden[id],mut=S.mutes[id];
+  const draw=()=>{
+    d.innerHTML=`<div class="dp">
+    <div class="rowline"><h3 class="t">${esc(p.name||id)}</h3><button class="btn sm" id="dx">Close</button></div>
+    <div style="margin-top:4px;color:var(--dim);font-size:12px;word-break:break-all">${esc(id)}</div>
+    <div class="sec"><h4>Overview</h4><div class="kv">
+      <div><small>Class</small>${esc(p.cls||"-")}</div><div><small>Status</small>${isOnline(p)?"Online":"Seen "+ago(p.lastSeen)}</div>
+      <div><small>Rank</small>${tierOf(rp(p))} (${num(rp(p))} RP)</div><div><small>Region</small>${esc(p.region||"-")}</div>
+      <div><small>Level</small>${p.level||1}</div><div><small>Kills / Gold</small>${num(p.kills)} / ${num(p.gold)}</div></div></div>
+    <div class="sec"><h4>Save slots</h4>${slots.map(s=>`<div class="slotc"><b>${esc(s.me.name||"?")}</b> · slot ${esc(s.k.slice(1))} · Lv ${s.me.level||1} ${esc(s.me.cls||"")}<br>${num(s.me.gold)} gold · ${num(s.me.kills)} kills · ${(s.me.inventory||[]).length} items · saved ${ago(s.ts)}</div>`).join("")||'<div class="empty">No cloud saves</div>'}</div>
+    <div class="sec"><h4>Edit character</h4>
+      <div class="frm">
+        <div><label class="f">Gold</label><input class="in" id="eg" type="number" min="0" placeholder="${cur?cur.gold:""}"></div>
+        <div><label class="f">Kills</label><input class="in" id="ek" type="number" min="0" placeholder="${cur?cur.kills||0:""}"></div>
+        <div><label class="f">Dungeons cleared</label><input class="in" id="ed" type="number" min="0" placeholder="${cur?cur.dungeonsCleared||0:""}"></div>
+        <div><label class="f">Level</label><input class="in" id="el" type="number" min="1" placeholder="${cur?cur.level:""}"></div>
+      </div>
+      <p style="font-size:11px;color:var(--dim);margin:6px 0 12px">Changing level does not recalculate HP, mana or attack stats.</p>
+      <label class="f">Add item</label>
+      <div class="tools" style="margin-bottom:8px"><input class="in" id="ei" list="itl" placeholder="Item name"><button class="btn sm" id="eia" type="button">Add</button></div>
+      <datalist id="itl">${ITEMS.map(i=>`<option value="${esc(i)}">`).join("")}</datalist>
+      <div class="chips" style="margin-bottom:12px">${adds.map((a,i)=>`<span class="chip on">+ ${esc(a)}<button class="xbtn" data-a="${i}">×</button></span>`).join("")}</div>
+      <label class="f">Inventory (tap to remove one)</label>
+      <div class="chips" style="margin-bottom:12px">${Object.entries(cnt).map(([n,c])=>{const q=rems.filter(r=>r===n).length;return `<button class="chip bad ${q?"on":""}" data-r="${esc(n)}">${esc(n)} x${c}${q?" (-"+q+")":""}</button>`;}).join("")||'<span style="color:var(--dim)">Empty or unknown</span>'}</div>
+      <div class="rowline" style="margin-bottom:14px"><span>Fully heal</span><button class="sw" id="eh" type="button" aria-label="Fully heal"></button></div>
+      <button class="btn pri block" id="esend">Send update to player</button>
+      <p style="font-size:11px;color:var(--dim);margin-top:6px">Applies instantly if the player is online, otherwise on their next login.</p>
+    </div>
+    <div class="sec"><h4>Moderation</h4>
+      <div class="rowline" style="margin-bottom:12px"><span>Mute in chat</span><button class="sw ${mut?"on":""}" id="mm" type="button" aria-label="Mute in chat"></button></div>
+      <div class="rowline" style="margin-bottom:12px"><span>Hide from leaderboard</span><button class="sw ${hid?"on":""}" id="mh" type="button" aria-label="Hide from leaderboard"></button></div>
+      ${banned?`<div class="err">Banned${banned.reason?": "+esc(banned.reason):""}<br><small>by ${esc(banned.by||"")} · ${banned.ts?stamp(banned.ts):""}</small></div><button class="btn block" id="mu">Lift ban</button>`
+      :`<label class="f">Ban reason</label><input class="in" id="mr" placeholder="Reason shown to the player" maxlength="120"><button class="btn danger block" id="mb" style="margin-top:10px">Ban account</button>`}
+    </div></div>`;
+    let heal=false;
+    $("#dx").onclick=closeDrawer;
+    const add=()=>{const v=$("#ei").value.trim();if(!v)return;if(!ITEMS.includes(v)){toast("Unknown item","bad");return;}adds.push(v);keep(()=>draw());};
+    $("#eia").onclick=add;$("#ei").onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();add();}};
+    d.querySelectorAll("[data-a]").forEach(b=>b.onclick=()=>{adds.splice(+b.dataset.a,1);keep(()=>draw());});
+    d.querySelectorAll("[data-r]").forEach(b=>b.onclick=()=>{const n=b.dataset.r;if(rems.filter(r=>r===n).length<cnt[n])rems.push(n);else{while(rems.indexOf(n)>-1)rems.splice(rems.indexOf(n),1);}keep(()=>draw());});
+    $("#eh").onclick=()=>{heal=!heal;$("#eh").classList.toggle("on",heal);};
+    $("#esend").onclick=()=>{
+      const f={};
+      [["eg","gold"],["ek","kills"],["ed","dungeonsCleared"],["el","level"]].forEach(([i,k])=>{const v=$("#"+i).value;if(v!==""&&!isNaN(+v))f[k]=Math.max(0,Math.floor(+v));});
+      if(heal)f.fullHeal=true;
+      if(!Object.keys(f).length&&!adds.length&&!rems.length){toast("Nothing to change","bad");return;}
+      const patch={id:rid(),ts:Date.now(),by:email,fields:f};
+      if(adds.length)patch.addItems=adds.slice();
+      if(rems.length)patch.removeItems=rems.slice();
+      guard(async()=>{await db.ref("users/"+id+"/patch").set(patch);await log("edit-player",p.name||id,JSON.stringify({...f,add:adds,remove:rems}));adds.length=0;rems.length=0;draw();},"Update sent");
+    };
+    $("#mh").onclick=()=>guard(async()=>{if(S.hidden[id]){await db.ref("global/hidden/"+id).remove();await log("unhide-player",p.name||id);}else{await db.ref("global/hidden/"+id).set(true);await log("hide-player",p.name||id);}setTimeout(()=>openPlayer(id),150);},"Saved");
+    $("#mm").onclick=()=>guard(async()=>{if(S.mutes[id]){await db.ref("mutes/"+id).remove();await log("unmute-player",p.name||id);}else{await db.ref("mutes/"+id).set({by:email,ts:Date.now()});await log("mute-player",p.name||id);}setTimeout(()=>openPlayer(id),150);},"Saved");
+    if($("#mb"))$("#mb").onclick=()=>{if(!confirm("Ban "+(p.name||id)+"? They will be signed out immediately."))return;const r=$("#mr").value.trim();guard(async()=>{await db.ref("bans/"+id).set({reason:r,by:email,ts:Date.now()});await log("ban-player",p.name||id,r);setTimeout(()=>openPlayer(id),150);},"Player banned");};
+    if($("#mu"))$("#mu").onclick=()=>guard(async()=>{await db.ref("bans/"+id).remove();await log("unban-player",p.name||id);setTimeout(()=>openPlayer(id),150);},"Ban lifted");
+  };
+  const keep=fn=>{const g=["eg","ek","ed","el"].map(i=>$("#"+i)?$("#"+i).value:"");fn();["eg","ek","ed","el"].forEach((i,n)=>{if($("#"+i))$("#"+i).value=g[n];});};
+  draw();
+}
+function closeDrawer(){const d=$("#drawer");d.hidden=true;d.innerHTML="";}
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("#drawer").hidden)closeDrawer();});
+
+function wset(patch,msg,logAct,logDetail){
+  return guard(async()=>{await db.ref("global/world").update({...patch,adminManaged:true});await log(logAct,"world",logDetail||"");},msg||"World updated");
+}
+function rWorld(force){
+  const ae=document.activeElement;
+  if(!force&&ae&&ae.type==="range"&&$("#v-world").contains(ae))return;
+  const w=S.world,locks=w.lockedRegions?Object.values(w.lockedRegions):[],evs=w.activeEvents?Object.values(w.activeEvents):[];
+  if(S.draftXp==null)S.draftXp=w.xpMult||1;
+  if(S.draftGold==null)S.draftGold=w.goldMult||1;
+  const wx=w.weather||"clear";
+  $("#v-world").innerHTML=`
+  <div class="head"><div><h2>World control</h2><p>Changes go live for every player instantly</p></div><button class="btn danger sm" id="wr">Reset world</button></div>
+  <div class="grid g2">
+    <div class="card"><h3>Weather</h3><div class="chips">${WEATHER.map(k=>`<button class="chip ${wx===k?"on":""}" data-w="${k}">${k[0].toUpperCase()+k.slice(1)}</button>`).join("")}</div></div>
+    <div class="card"><h3>Faction PvP</h3><div class="rowline"><span>Allow player vs player</span><button class="sw ${w.pvpEnabled?"on":""}" id="wp" aria-label="Toggle PvP"></button></div></div>
+    <div class="card"><h3>XP multiplier</h3><div class="range"><input type="range" id="rx" min="0.5" max="10" step="0.5" value="${S.draftXp}"><output id="ox">x${S.draftXp}</output><button class="btn sm pri" id="ax">Apply</button></div></div>
+    <div class="card"><h3>Gold multiplier</h3><div class="range"><input type="range" id="rg" min="0.5" max="10" step="0.5" value="${S.draftGold}"><output id="og">x${S.draftGold}</output><button class="btn sm pri" id="ag">Apply</button></div></div>
+  </div>
+  <div class="card" style="margin-top:14px"><h3>Region locks</h3><div class="chips">${REGIONS.map(r=>`<button class="chip bad ${locks.includes(r)?"on":""}" data-l="${esc(r)}">${esc(r)}${locks.includes(r)?" (locked)":""}</button>`).join("")}</div></div>
+  <div class="card" style="margin-top:14px"><h3>World events</h3><div class="wgrid">${EVENTS.map(([k,n,d])=>`<button class="ev ${evs.includes(k)?"on":""}" data-e="${k}"><b>${n}</b><span>${evs.includes(k)?"Active - tap to end":d}</span></button>`).join("")}</div></div>`;
+  const host=$("#v-world");
+  host.onclick=e=>{
+    const t=e.target.closest("button");if(!t)return;
+    if(t.dataset.w)wset({weather:t.dataset.w},"Weather set","set-weather",t.dataset.w);
+    else if(t.id==="wp")wset({pvpEnabled:!w.pvpEnabled},"PvP "+(!w.pvpEnabled?"enabled":"disabled"),"set-pvp",String(!w.pvpEnabled));
+    else if(t.id==="ax")wset({xpMult:+S.draftXp},"XP multiplier set","set-xp","x"+S.draftXp);
+    else if(t.id==="ag")wset({goldMult:+S.draftGold},"Gold multiplier set","set-gold","x"+S.draftGold);
+    else if(t.dataset.l){const r=t.dataset.l;const n=locks.includes(r)?locks.filter(x=>x!==r):[...locks,r];wset({lockedRegions:n.length?n:null},(locks.includes(r)?"Unlocked ":"Locked ")+r,locks.includes(r)?"unlock-region":"lock-region",r);}
+    else if(t.dataset.e){const k=t.dataset.e;const n=evs.includes(k)?evs.filter(x=>x!==k):[...evs,k];wset({activeEvents:n.length?n:null},evs.includes(k)?"Event ended":"Event started",evs.includes(k)?"end-event":"start-event",k);}
+    else if(t.id==="wr"){if(!confirm("Reset weather, multipliers, PvP, locks and events to defaults?"))return;wset({weather:"clear",xpMult:1,goldMult:1,pvpEnabled:false,lockedRegions:null,activeEvents:null},"World reset","reset-world");}
+  };
+  $("#rx").oninput=e=>{S.draftXp=e.target.value;$("#ox").textContent="x"+e.target.value;};
+  $("#rg").oninput=e=>{S.draftGold=e.target.value;$("#og").textContent="x"+e.target.value;};
+}
+
+let aBuilt=false;
+function rAnnounce(force){
+  const host=$("#v-announce");
+  if(force||!aBuilt){
+    aBuilt=true;
+    host.innerHTML=`<div class="head"><div><h2>Announcements</h2><p>Shown to every online player as a notification</p></div></div>
+    <div class="card"><div class="field"><label class="f" for="at">Type</label><select class="in" id="at"><option value="info">Info</option><option value="warn">Warning</option><option value="event">Event</option></select></div>
+    <div class="field"><label class="f" for="am">Message</label><textarea class="in" id="am" maxlength="200" placeholder="Server restart in 10 minutes..."></textarea><div style="text-align:right;font-size:11px;color:var(--dim);margin-top:4px" id="ac">0 / 200</div></div>
+    <div class="tools" style="margin:0"><button class="btn pri" id="as">Send to all players</button><button class="btn" id="aclr">Clear active announcement</button></div></div>
+    <div class="head" style="margin-top:26px"><div><h2 style="font-size:17px">History</h2></div></div><div class="hist" id="ah"></div>`;
+    $("#am").oninput=e=>{$("#ac").textContent=e.target.value.length+" / 200";};
+    $("#as").onclick=()=>{const m=$("#am").value.trim();if(!m){toast("Write a message first","bad");return;}send(m,$("#at").value);$("#am").value="";$("#ac").textContent="0 / 200";};
+    $("#aclr").onclick=()=>guard(async()=>{await db.ref("announcements/current").remove();await log("clear-announcement","all");},"Cleared");
+    $("#ah").onclick=e=>{const b=e.target.closest("[data-k]");if(!b)return;const a=S.hist.find(x=>x.k===b.dataset.k);if(a)send(a.msg,a.type);};
+  }
+  $("#ah").innerHTML=S.hist.map(a=>`<div class="hi"><div class="m"><span class="tag ${a.type==="warn"?"amber":""}" style="margin:0 8px 0 0">${esc((a.type||"info").toUpperCase())}</span>${esc(a.msg)}<small>${stamp(a.ts)} · ${esc(a.by||"")}</small></div><button class="btn sm" data-k="${esc(a.k)}">Resend</button></div>`).join("")||'<div class="empty">No announcements yet</div>';
+}
+function send(msg,type){
+  guard(async()=>{const a={id:rid(),msg,type,ts:Date.now(),by:email};await db.ref("announcements/current").set(a);await db.ref("announcements/history").push(a);await log("announce","all",msg.slice(0,80));},"Announcement sent");
+}
+
+let cBuilt=false;
+function rChat(force){
+  const host=$("#v-chat");
+  if(force||!cBuilt){
+    cBuilt=true;
+    host.innerHTML=`<div class="head"><div><h2>Chat monitor</h2><p>Live global chat, newest first</p></div><button class="btn danger sm" id="cclr">Clear all</button></div><div class="tw" id="cl"></div>`;
+    $("#cclr").onclick=()=>{if(!confirm("Delete ALL global chat messages?"))return;guard(async()=>{await db.ref("chat/global").remove();await log("clear-chat","global");},"Chat cleared");};
+    $("#cl").onclick=e=>{
+      const b=e.target.closest("button");if(!b)return;
+      if(b.dataset.d)guard(async()=>{await db.ref("chat/global/"+b.dataset.d).remove();await log("delete-message","global",b.dataset.t||"");},"Deleted");
+      else if(b.dataset.m){const u=b.dataset.m;guard(async()=>{if(S.mutes[u]){await db.ref("mutes/"+u).remove();await log("unmute-player",b.dataset.n||u);}else{await db.ref("mutes/"+u).set({by:email,ts:Date.now()});await log("mute-player",b.dataset.n||u);}},S.mutes[u]?"Unmuted":"Muted");}
+    };
+  }
+  $("#cl").innerHTML=S.chat.map(m=>`<div class="hi" style="border:none;border-bottom:1px solid var(--line);border-radius:0"><div class="m"><b>${esc(m.name)}</b>${S.mutes[m.uid]?'<span class="tag red">MUTED</span>':""}<small style="display:inline;margin-left:8px">${stamp(m.ts)}</small><div>${esc(m.text)}</div></div><div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end"><button class="btn sm" data-m="${esc(m.uid)}" data-n="${esc(m.name)}">${S.mutes[m.uid]?"Unmute":"Mute"}</button><button class="btn sm danger" data-d="${esc(m.k)}" data-t="${esc((m.text||"").slice(0,60))}">Delete</button></div></div>`).join("")||'<div class="empty">No messages</div>';
+}
+
+let lBuilt=false,lq="";
+function rLogs(force){
+  const host=$("#v-logs");
+  if(force||!lBuilt){
+    lBuilt=true;
+    host.innerHTML=`<div class="head"><div><h2>Audit log</h2><p>Every admin action, newest first</p></div></div>
+    <div class="tools"><input class="in" id="lq" type="search" placeholder="Filter by action, target or admin" value="${esc(lq)}"></div><div class="tw"><table><thead><tr><th>When</th><th>Admin</th><th>Action</th><th>Target</th><th>Detail</th></tr></thead><tbody id="lb2"></tbody></table></div>`;
+    $("#lq").oninput=e=>{lq=e.target.value;rLogs();};
+  }
+  const q=lq.trim().toLowerCase();
+  const L=S.logs.filter(l=>!q||[l.action,l.target,l.by,l.detail].join(" ").toLowerCase().includes(q));
+  $("#lb2").innerHTML=L.map(l=>`<tr><td style="white-space:nowrap">${stamp(l.ts)}</td><td>${esc(l.by)}</td><td><b>${esc(l.action)}</b></td><td>${esc(l.target)}</td><td style="color:var(--dim);overflow-wrap:anywhere">${esc(l.detail)}</td></tr>`).join("")||`<tr><td colspan="5" class="empty">No entries</td></tr>`;
+}
+</script>
+</body>
+</html>
